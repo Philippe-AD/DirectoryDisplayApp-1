@@ -64,6 +64,35 @@ const IMAGE_EXTENSIONS = new Set([
   'apng',
 ]);
 
+const AUDIO_EXTENSIONS = new Set([
+  'mp3',
+  'wav',
+  'ogg',
+  'm4a',
+  'aac',
+  'flac',
+  'wma',
+  'opus',
+  'mid',
+  'midi',
+  'amr',
+  'aiff',
+  'alac',
+]);
+
+const VIDEO_EXTENSIONS = new Set([
+  'mp4',
+  'webm',
+  'ogv',
+  'mov',
+  'mkv',
+  'avi',
+  'wmv',
+  'm4v',
+  '3gp',
+  'flv',
+]);
+
 export function getFileExtension(name) {
   const dotIndex = name.lastIndexOf('.');
   return dotIndex >= 0 ? name.slice(dotIndex + 1).toLowerCase() : '';
@@ -77,6 +106,17 @@ export function getMimeType(fileName) {
     if (ext === 'svg') return 'image/svg+xml';
     return `image/${ext}`;
   }
+  if (AUDIO_EXTENSIONS.has(ext)) {
+    if (ext === 'mp3') return 'audio/mpeg';
+    if (ext === 'm4a') return 'audio/mp4';
+    return `audio/${ext}`;
+  }
+  if (VIDEO_EXTENSIONS.has(ext)) {
+    if (ext === 'mov') return 'video/quicktime';
+    if (ext === 'mkv') return 'video/x-matroska';
+    if (ext === 'avi') return 'video/x-msvideo';
+    return `video/${ext}`;
+  }
   if (ext === 'docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   if (ext === 'doc') return 'application/msword';
   if (PLAIN_TEXT_EXTENSION.has(ext) || SYNTAX_LANGUAGE_BY_EXTENSION[ext] !== undefined) return 'text/plain';
@@ -85,7 +125,17 @@ export function getMimeType(fileName) {
 
 export function isImageFile(file) {
   const extension = getFileExtension(file.name);
-  return file.type.startsWith('image/') || IMAGE_EXTENSIONS.has(extension);
+  return (file.type && file.type.startsWith('image/')) || IMAGE_EXTENSIONS.has(extension);
+}
+
+export function isAudioFile(file) {
+  const extension = getFileExtension(file.name);
+  return (file.type && file.type.startsWith('audio/')) || AUDIO_EXTENSIONS.has(extension);
+}
+
+export function isVideoFile(file) {
+  const extension = getFileExtension(file.name);
+  return (file.type && file.type.startsWith('video/')) || VIDEO_EXTENSIONS.has(extension);
 }
 
 export function isPdfFile(file) {
@@ -105,7 +155,7 @@ export function getSyntaxLanguage(name) {
 
 export function isTextFile(file) {
   const extension = getFileExtension(file.name);
-  return file.type.startsWith('text/')
+  return (file.type && file.type.startsWith('text/'))
     || getSyntaxLanguage(file.name) !== null
     || PLAIN_TEXT_EXTENSION.has(extension);
 }
@@ -131,6 +181,8 @@ export async function readTextPreview(file) {
 
 export async function readFilePreview(file) {
   if (isImageFile(file)) return { kind: 'image' };
+  if (isAudioFile(file)) return { kind: 'audio' };
+  if (isVideoFile(file)) return { kind: 'video' };
   if (isPdfFile(file)) return { kind: 'pdf' };
 
   if (isWordFile(file)) {

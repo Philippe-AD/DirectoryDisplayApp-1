@@ -4,9 +4,11 @@ import {
   getFileExtension,
   getMimeType,
   getSyntaxLanguage,
+  isAudioFile,
   isImageFile,
   isPdfFile,
   isTextFile,
+  isVideoFile,
   isWordFile,
   readFilePreview,
   readTextPreview,
@@ -20,6 +22,18 @@ describe('file previews', () => {
     expect(isImageFile(new File(['data'], 'graphic.svg'))).toBe(true);
     expect(isImageFile(new File(['data'], 'anim.webp'))).toBe(true);
     expect(isImageFile(new File(['data'], 'document.pdf'))).toBe(false);
+  });
+
+  it('recognizes audio and video files by MIME type or extension', () => {
+    expect(isAudioFile(new File(['data'], 'song.mp3', { type: 'audio/mpeg' }))).toBe(true);
+    expect(isAudioFile(new File(['data'], 'track.wav'))).toBe(true);
+    expect(isAudioFile(new File(['data'], 'music.flac'))).toBe(true);
+    expect(isAudioFile(new File(['data'], 'photo.png', { type: 'image/png' }))).toBe(false);
+
+    expect(isVideoFile(new File(['data'], 'clip.mp4', { type: 'video/mp4' }))).toBe(true);
+    expect(isVideoFile(new File(['data'], 'movie.mkv'))).toBe(true);
+    expect(isVideoFile(new File(['data'], 'video.webm'))).toBe(true);
+    expect(isVideoFile(new File(['data'], 'song.mp3'))).toBe(false);
   });
 
   it('recognizes text MIME types and supported text extensions', () => {
@@ -51,13 +65,21 @@ describe('file previews', () => {
     expect(getMimeType('photo.PNG')).toBe('image/png');
     expect(getMimeType('image.jpg')).toBe('image/jpeg');
     expect(getMimeType('vector.svg')).toBe('image/svg+xml');
+    expect(getMimeType('track.mp3')).toBe('audio/mpeg');
+    expect(getMimeType('movie.mp4')).toBe('video/mp4');
     expect(getMimeType('script.js')).toBe('text/plain');
     expect(getMimeType('unknown.xyz')).toBe('');
   });
 
-  it('returns dedicated previews for image, PDF, legacy Word documents, and handles corrupted docx files', async () => {
+  it('returns dedicated previews for image, audio, video, PDF, legacy Word documents, and handles corrupted docx files', async () => {
     await expect(readFilePreview(new File(['img'], 'photo.png', { type: 'image/png' }))).resolves.toEqual({
       kind: 'image',
+    });
+    await expect(readFilePreview(new File(['audio'], 'song.mp3', { type: 'audio/mpeg' }))).resolves.toEqual({
+      kind: 'audio',
+    });
+    await expect(readFilePreview(new File(['video'], 'clip.mp4', { type: 'video/mp4' }))).resolves.toEqual({
+      kind: 'video',
     });
     await expect(readFilePreview(new File(['pdf'], 'report.pdf'))).resolves.toEqual({
       kind: 'pdf',

@@ -1,7 +1,7 @@
 import Prism from 'prismjs';
 import 'prismjs/themes/prism.css';
 import { icons } from './icons';
-import { getSyntaxLanguage, isImageFile } from './filePreview';
+import { getSyntaxLanguage, isImageFile, isAudioFile, isVideoFile } from './filePreview';
 
 export const COLOR_PALETTE = [
   { bg: 'bg-blue-600',    light: 'bg-blue-50',    text: 'text-blue-600',    badge: 'bg-blue-100 text-blue-700' },
@@ -125,13 +125,19 @@ export function renderFileCard(item, isSelected = false) {
   const color = getColorForPath(item.path);
   const isDocument = item.type === 'file' && (/\.(pdf|docx?)$/i.test(item.name));
   const isImage = item.type === 'file' && (item.file ? isImageFile(item.file) : /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif|tiff|apng)$/i.test(item.name));
+  const isAudio = item.type === 'file' && (item.file ? isAudioFile(item.file) : /\.(mp3|wav|ogg|m4a|aac|flac|wma|opus|mid|midi|amr|aiff|alac)$/i.test(item.name));
+  const isVideo = item.type === 'file' && (item.file ? isVideoFile(item.file) : /\.(mp4|webm|ogv|mov|mkv|avi|wmv|m4v|3gp|flv)$/i.test(item.name));
   const icon = item.type === 'directory'
     ? icons.folderOpen({ size: 20, className: color.text })
     : isImage
       ? icons.image({ size: 20, className: color.text })
-      : isDocument
-        ? icons.fileText({ size: 20, className: color.text })
-        : icons.file({ size: 20, className: color.text });
+      : isAudio
+        ? icons.music({ size: 20, className: color.text })
+        : isVideo
+          ? icons.video({ size: 20, className: color.text })
+          : isDocument
+            ? icons.fileText({ size: 20, className: color.text })
+            : icons.file({ size: 20, className: color.text });
 
   const selectedClasses = isSelected
     ? 'ring-2 ring-blue-500 bg-blue-50/70 border-blue-300 shadow-sm'
@@ -238,6 +244,41 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
         </div>
       </div>
     `;
+  } else if (preview.kind === 'audio' && objectUrl) {
+    previewBodyHtml = `
+      <div class="mt-4">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Aperçu audio</p>
+        <div class="flex flex-col items-center justify-center p-6 bg-slate-900 rounded-2xl border border-gray-200 shadow-sm gap-4">
+          <div class="p-4 bg-blue-600/20 text-blue-400 rounded-full">
+            ${icons.music({ size: 40 })}
+          </div>
+          <audio
+            controls
+            src="${objectUrl}"
+            class="w-full"
+            preload="metadata"
+          >
+            Votre navigateur ne supporte pas la lecture audio.
+          </audio>
+        </div>
+      </div>
+    `;
+  } else if (preview.kind === 'video' && objectUrl) {
+    previewBodyHtml = `
+      <div class="mt-4">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Aperçu vidéo</p>
+        <div class="flex items-center justify-center p-2 bg-black rounded-2xl border border-gray-200 overflow-hidden max-h-[50vh]">
+          <video
+            controls
+            src="${objectUrl}"
+            class="max-w-full max-h-[45vh] rounded-xl"
+            preload="metadata"
+          >
+            Votre navigateur ne supporte pas la lecture vidéo.
+          </video>
+        </div>
+      </div>
+    `;
   } else if (preview.kind === 'pdf' && objectUrl) {
     previewBodyHtml = `
       <div class="mt-4">
@@ -313,11 +354,23 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
     `;
   }
 
+  const isImageHeader = isImageFile({ name: selectedItem.name, type: '' });
+  const isAudioHeader = isAudioFile({ name: selectedItem.name, type: '' });
+  const isVideoHeader = isVideoFile({ name: selectedItem.name, type: '' });
+
+  const headerIcon = isImageHeader
+    ? icons.image({ size: 24 })
+    : isAudioHeader
+      ? icons.music({ size: 24 })
+      : isVideoHeader
+        ? icons.video({ size: 24 })
+        : icons.fileText({ size: 24 });
+
   return `
     <div id="preview-panel" class="h-full flex flex-col p-6 bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-y-auto">
       <div class="flex items-start gap-3.5 pb-4 border-b border-gray-100">
         <div class="p-3 rounded-2xl ${color.light} ${color.text} flex-shrink-0">
-          ${icons.fileText({ size: 24 })}
+          ${headerIcon}
         </div>
         <div class="min-w-0 flex-1">
           <h3 class="font-bold text-gray-900 text-base truncate">${escapeHtml(selectedItem.name)}</h3>

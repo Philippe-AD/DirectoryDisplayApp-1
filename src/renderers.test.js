@@ -24,6 +24,41 @@ describe('renderers & UI layout', () => {
     expect(htmlSelected).toContain('ring-2 ring-blue-500');
   });
 
+  it('renders file card icons correctly for audio and video files', () => {
+    const audioItem = { path: '/media/song.mp3', name: 'song.mp3', type: 'file', size: 5000000 };
+    const videoItem = { path: '/media/movie.mp4', name: 'movie.mp4', type: 'file', size: 50000000 };
+
+    const audioHtml = renderFileCard(audioItem, false);
+    const videoHtml = renderFileCard(videoItem, false);
+
+    expect(audioHtml).toContain('song.mp3');
+    expect(videoHtml).toContain('movie.mp4');
+  });
+
+  it('renders audio and video preview panel player components when objectUrl is present', () => {
+    const audioItem = { path: '/media/song.mp3', name: 'song.mp3', type: 'file', size: 5000000 };
+    const videoItem = { path: '/media/movie.mp4', name: 'movie.mp4', type: 'file', size: 50000000 };
+
+    const audioPanelHtml = renderPreviewPanel(
+      audioItem,
+      { status: 'audio', preview: { kind: 'audio' } },
+      'blob:http://localhost/audio-blob'
+    );
+    const videoPanelHtml = renderPreviewPanel(
+      videoItem,
+      { status: 'video', preview: { kind: 'video' } },
+      'blob:http://localhost/video-blob'
+    );
+
+    expect(audioPanelHtml).toContain('<audio');
+    expect(audioPanelHtml).toContain('src="blob:http://localhost/audio-blob"');
+    expect(audioPanelHtml).toContain('Aperçu audio');
+
+    expect(videoPanelHtml).toContain('<video');
+    expect(videoPanelHtml).toContain('src="blob:http://localhost/video-blob"');
+    expect(videoPanelHtml).toContain('Aperçu vidéo');
+  });
+
   it('renders main layout with list, resizer, and side preview panel', () => {
     const crumbs = [{ name: 'Project', path: '/Project' }];
     const items = [
