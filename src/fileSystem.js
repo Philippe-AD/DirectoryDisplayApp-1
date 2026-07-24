@@ -1,3 +1,5 @@
+import { getMimeType } from './filePreview';
+
 // File system access abstraction supporting both Electron native API and browser File System Access API.
 
 export function isElectron() {
@@ -39,7 +41,8 @@ export async function getElectronFile(filePath, fileName, options = {}) {
   if (!buffer) return null;
 
   const totalSize = typeof res.totalSize === 'number' ? res.totalSize : buffer.byteLength;
-  const file = new File([buffer], fileName);
+  const mimeType = getMimeType(fileName);
+  const file = new File([buffer], fileName, { type: mimeType });
   Object.defineProperty(file, 'totalSize', {
     value: totalSize,
     writable: false,

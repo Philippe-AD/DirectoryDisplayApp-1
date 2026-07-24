@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   MAX_TEXT_PREVIEW_BYTES,
   getFileExtension,
+  getMimeType,
   getSyntaxLanguage,
   isImageFile,
   isPdfFile,
@@ -43,6 +44,15 @@ describe('file previews', () => {
     expect(isWordFile(new File(['docx'], 'letter.docx'))).toBe(true);
     expect(isWordFile(new File(['doc'], 'letter', { type: 'application/msword' }))).toBe(true);
     expect(getFileExtension('archive.tar.GZ')).toBe('gz');
+  });
+
+  it('correctly maps file extensions to MIME types', () => {
+    expect(getMimeType('document.pdf')).toBe('application/pdf');
+    expect(getMimeType('photo.PNG')).toBe('image/png');
+    expect(getMimeType('image.jpg')).toBe('image/jpeg');
+    expect(getMimeType('vector.svg')).toBe('image/svg+xml');
+    expect(getMimeType('script.js')).toBe('text/plain');
+    expect(getMimeType('unknown.xyz')).toBe('');
   });
 
   it('returns dedicated previews for image, PDF, legacy Word documents, and handles corrupted docx files', async () => {

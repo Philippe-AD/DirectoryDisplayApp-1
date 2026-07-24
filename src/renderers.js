@@ -242,11 +242,19 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
     previewBodyHtml = `
       <div class="mt-4">
         <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Aperçu PDF</p>
-        <iframe
-          src="${objectUrl}"
+        <object
+          data="${objectUrl}"
+          type="application/pdf"
           title="Prévisualisation PDF de ${escapeHtml(selectedItem.name)}"
-          class="w-full h-[50vh] rounded-2xl border border-gray-200 bg-gray-50"
-        ></iframe>
+          class="w-full h-[50vh] rounded-2xl border border-gray-200 bg-gray-50 overflow-hidden"
+        >
+          <iframe
+            src="${objectUrl}"
+            type="application/pdf"
+            title="Prévisualisation PDF de ${escapeHtml(selectedItem.name)}"
+            class="w-full h-full border-0"
+          ></iframe>
+        </object>
       </div>
     `;
   } else if (preview.kind === 'text' || preview.kind === 'word') {
@@ -358,7 +366,8 @@ export function renderMainLayout(
   previewState = { status: 'idle' },
   objectUrl = null,
   isPanelVisible = true,
-  panelWidth = 380
+  panelWidth = 380,
+  isHeaderCollapsed = false
 ) {
   const color = getColorForPath(currentPath || '/files');
   const selectedPath = selectedItem ? selectedItem.path : null;
@@ -416,64 +425,133 @@ export function renderMainLayout(
     `;
   }
 
-  return `
-    <div class="min-h-screen bg-gray-50 flex flex-col">
-      <!-- Header Bar -->
-      <div class="${color.bg} px-6 pt-6 pb-10 shadow-sm transition-colors">
-        <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          <div class="flex items-center gap-3">
-            ${crumbs.length > 1 ? `
-              <button
-                id="btn-go-back"
-                class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors"
-              >
-                ${icons.arrowLeft({ size: 14 })}
-                Retour
-              </button>
-            ` : ''}
-            <div class="p-2.5 bg-white/20 rounded-2xl text-white">
-              ${icons.folder({ size: 24 })}
-            </div>
-            <div class="min-w-0">
-              <h1 class="text-xl font-bold text-white truncate">${escapeHtml(displayName)}</h1>
-              <p class="text-white/70 text-xs truncate max-w-md">${escapeHtml(currentPath)}</p>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-2">
+  const headerContentHtml = isHeaderCollapsed
+    ? `
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3 min-w-0">
+          ${crumbs.length > 1 ? `
             <button
-              id="btn-toggle-panel"
-              class="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
-              aria-label="${isPanelVisible ? 'Masquer le panneau de prévisualisation' : 'Afficher le panneau de prévisualisation'}"
-              title="${isPanelVisible ? 'Masquer le panneau' : 'Afficher le panneau'}"
+              id="btn-go-back"
+              class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors flex-shrink-0"
             >
-              ${isPanelVisible ? icons.eyeOff({ size: 16 }) : icons.eye({ size: 16 })}
-              <span class="hidden sm:inline">${isPanelVisible ? 'Masquer panneau' : 'Afficher panneau'}</span>
+              ${icons.arrowLeft({ size: 14 })}
+              <span class="hidden sm:inline">Retour</span>
             </button>
-
-            ${!usingFallback ? `
-              <button
-                id="btn-open-another"
-                class="flex items-center gap-2 bg-white text-gray-800 hover:bg-gray-100 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors shadow-sm"
-              >
-                ${icons.folderTree({ size: 16, className: 'text-blue-600' })}
-                <span class="hidden sm:inline">Changer de dossier</span>
-              </button>
-            ` : ''}
+          ` : ''}
+          <div class="p-1.5 bg-white/20 rounded-lg text-white flex-shrink-0">
+            ${icons.folder({ size: 18 })}
+          </div>
+          <div class="min-w-0 flex items-center gap-2">
+            <h1 class="text-sm font-bold text-white truncate">${escapeHtml(displayName)}</h1>
+            <span class="text-white/60 text-xs hidden md:inline truncate max-w-xs">(${escapeHtml(currentPath)})</span>
           </div>
         </div>
 
-        <div class="max-w-7xl mx-auto">
-          ${crumbsHtml}
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button
+            id="btn-toggle-header"
+            class="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+            aria-label="Agrandir l'en-tête"
+            title="Agrandir l'en-tête"
+          >
+            ${icons.chevronDown({ size: 16 })}
+            <span class="hidden sm:inline">Agrandir</span>
+          </button>
+
+          <button
+            id="btn-toggle-panel"
+            class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+            aria-label="${isPanelVisible ? 'Masquer le panneau' : 'Afficher le panneau'}"
+            title="${isPanelVisible ? 'Masquer le panneau' : 'Afficher le panneau'}"
+          >
+            ${isPanelVisible ? icons.eyeOff({ size: 16 }) : icons.eye({ size: 16 })}
+            <span class="hidden sm:inline">${isPanelVisible ? 'Masquer' : 'Panneau'}</span>
+          </button>
+
+          ${!usingFallback ? `
+            <button
+              id="btn-open-another"
+              class="flex items-center gap-1.5 bg-white text-gray-800 hover:bg-gray-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-sm"
+            >
+              ${icons.folderTree({ size: 16, className: 'text-blue-600' })}
+              <span class="hidden sm:inline">Changer dossier</span>
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `
+    : `
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          ${crumbs.length > 1 ? `
+            <button
+              id="btn-go-back"
+              class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors"
+            >
+              ${icons.arrowLeft({ size: 14 })}
+              Retour
+            </button>
+          ` : ''}
+          <div class="p-2.5 bg-white/20 rounded-2xl text-white">
+            ${icons.folder({ size: 24 })}
+          </div>
+          <div class="min-w-0">
+            <h1 class="text-xl font-bold text-white truncate">${escapeHtml(displayName)}</h1>
+            <p class="text-white/70 text-xs truncate max-w-md">${escapeHtml(currentPath)}</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button
+            id="btn-toggle-header"
+            class="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+            aria-label="Réduire l'en-tête"
+            title="Réduire l'en-tête"
+          >
+            ${icons.chevronUp({ size: 16 })}
+            <span class="hidden sm:inline">Réduire</span>
+          </button>
+
+          <button
+            id="btn-toggle-panel"
+            class="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+            aria-label="${isPanelVisible ? 'Masquer le panneau de prévisualisation' : 'Afficher le panneau de prévisualisation'}"
+            title="${isPanelVisible ? 'Masquer le panneau' : 'Afficher le panneau'}"
+          >
+            ${isPanelVisible ? icons.eyeOff({ size: 16 }) : icons.eye({ size: 16 })}
+            <span class="hidden sm:inline">${isPanelVisible ? 'Masquer panneau' : 'Afficher panneau'}</span>
+          </button>
+
+          ${!usingFallback ? `
+            <button
+              id="btn-open-another"
+              class="flex items-center gap-2 bg-white text-gray-800 hover:bg-gray-100 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors shadow-sm"
+            >
+              ${icons.folderTree({ size: 16, className: 'text-blue-600' })}
+              <span class="hidden sm:inline">Changer de dossier</span>
+            </button>
+          ` : ''}
         </div>
       </div>
 
+      <div class="max-w-7xl mx-auto">
+        ${crumbsHtml}
+      </div>
+    `;
+
+  return `
+    <div class="h-screen flex flex-col bg-gray-50 overflow-hidden">
+      <!-- Fixed Header Bar -->
+      <header id="app-header" class="${color.bg} px-6 ${isHeaderCollapsed ? 'py-2.5' : 'pt-5 pb-8'} shadow-md transition-all duration-200 z-20 flex-shrink-0">
+        ${headerContentHtml}
+      </header>
+
       <!-- Main Layout Content -->
-      <div class="flex-1 max-w-7xl w-full mx-auto px-4 -mt-5 pb-8 flex flex-col md:flex-row gap-0 overflow-hidden">
+      <div class="flex-1 max-w-7xl w-full mx-auto px-4 ${isHeaderCollapsed ? 'pt-3' : '-mt-5'} pb-4 flex flex-col md:flex-row gap-0 overflow-hidden">
         <!-- Zone 1: File Navigation & List -->
-        <div id="file-list-container" class="flex-1 flex flex-col min-w-[260px] overflow-hidden pr-0 md:pr-1">
+        <div id="file-list-container" class="flex-1 flex flex-col min-w-[260px] h-full overflow-hidden pr-0 md:pr-1">
           <!-- Search input -->
-          <div class="relative mb-3">
+          <div class="relative mb-3 flex-shrink-0">
             <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
               ${icons.search({ size: 18 })}
             </div>
@@ -492,7 +570,7 @@ export function renderMainLayout(
           </div>
 
           ${error ? `
-            <div class="mb-3 p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start justify-between gap-3 shadow-sm">
+            <div class="mb-3 p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start justify-between gap-3 shadow-sm flex-shrink-0">
               <div class="flex items-start gap-2.5">
                 ${icons.alertCircle({ size: 18, className: 'text-amber-600 flex-shrink-0 mt-0.5' })}
                 <p class="text-xs text-amber-900 font-medium">${escapeHtml(error)}</p>
@@ -504,7 +582,7 @@ export function renderMainLayout(
           ` : ''}
 
           <!-- File List -->
-          <div id="file-list" class="flex-1 overflow-y-auto pr-1 min-h-[300px]">
+          <div id="file-list" class="flex-1 overflow-y-auto pr-1">
             ${contentHtml}
           </div>
         </div>
@@ -528,7 +606,7 @@ export function renderMainLayout(
         <!-- Zone 3: Integrated Preview Side Panel -->
         <div
           id="preview-panel-container"
-          class="${isPanelVisible ? 'flex' : 'hidden'} flex-col min-w-[260px] ${isPanelVisible ? 'w-full md:w-auto' : ''} mt-4 md:mt-0 flex-shrink-0"
+          class="${isPanelVisible ? 'flex' : 'hidden'} flex-col min-w-[260px] ${isPanelVisible ? 'w-full md:w-auto' : ''} mt-4 md:mt-0 flex-shrink-0 h-full overflow-hidden"
           style="${isPanelVisible ? `width: ${panelWidth}px;` : ''}"
         >
           ${renderPreviewPanel(selectedItem, previewState, objectUrl)}

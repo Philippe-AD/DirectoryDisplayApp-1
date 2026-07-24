@@ -97,4 +97,52 @@ describe('renderers & UI layout', () => {
     expect(html).toContain('Erreur de lecture');
     expect(html).toContain('Impossible de lire le contenu de ce fichier');
   });
+
+  it('supports collapsing and expanding header bar to maximize screen space', () => {
+    const crumbs = [{ name: 'Project', path: '/Project' }];
+    const items = [{ name: 'index.js', type: 'file', path: '/Project/index.js' }];
+
+    const htmlExpanded = renderMainLayout(
+      'Project',
+      '/Project',
+      crumbs,
+      items,
+      false,
+      '',
+      false,
+      null,
+      null,
+      { status: 'idle' },
+      null,
+      true,
+      380,
+      false // expanded header
+    );
+
+    const htmlCollapsed = renderMainLayout(
+      'Project',
+      '/Project',
+      crumbs,
+      items,
+      false,
+      '',
+      false,
+      null,
+      null,
+      { status: 'idle' },
+      null,
+      true,
+      380,
+      true // collapsed header
+    );
+
+    expect(htmlExpanded).toContain('id="app-header"');
+    expect(htmlExpanded).toContain('id="btn-toggle-header"');
+    expect(htmlExpanded).toContain('Réduire');
+
+    expect(htmlCollapsed).toContain('id="app-header"');
+    expect(htmlCollapsed).toContain('id="btn-toggle-header"');
+    expect(htmlCollapsed).toContain('Agrandir');
+    expect(htmlCollapsed).toContain('py-2.5');
+  });
 });

@@ -69,6 +69,20 @@ export function getFileExtension(name) {
   return dotIndex >= 0 ? name.slice(dotIndex + 1).toLowerCase() : '';
 }
 
+export function getMimeType(fileName) {
+  const ext = getFileExtension(fileName);
+  if (ext === 'pdf') return 'application/pdf';
+  if (IMAGE_EXTENSIONS.has(ext)) {
+    if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+    if (ext === 'svg') return 'image/svg+xml';
+    return `image/${ext}`;
+  }
+  if (ext === 'docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (ext === 'doc') return 'application/msword';
+  if (PLAIN_TEXT_EXTENSION.has(ext) || SYNTAX_LANGUAGE_BY_EXTENSION[ext] !== undefined) return 'text/plain';
+  return '';
+}
+
 export function isImageFile(file) {
   const extension = getFileExtension(file.name);
   return file.type.startsWith('image/') || IMAGE_EXTENSIONS.has(extension);

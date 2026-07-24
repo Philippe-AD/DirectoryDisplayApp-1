@@ -28,6 +28,7 @@ const state = {
   previewState: { status: 'idle', preview: null },
   isPreviewPanelVisible: true,
   panelWidth: 380,
+  isHeaderCollapsed: false,
   fallbackItems: [],
   usingFallback: false,
   objectUrl: null,
@@ -93,7 +94,8 @@ function render() {
     state.previewState,
     state.objectUrl,
     state.isPreviewPanelVisible,
-    state.panelWidth
+    state.panelWidth,
+    state.isHeaderCollapsed
   );
 
   root.innerHTML = html;
@@ -134,6 +136,11 @@ function bindMainEvents() {
 
   document.getElementById('btn-dismiss-error')?.addEventListener('click', () => {
     state.error = null;
+    render();
+  });
+
+  document.getElementById('btn-toggle-header')?.addEventListener('click', () => {
+    state.isHeaderCollapsed = !state.isHeaderCollapsed;
     render();
   });
 

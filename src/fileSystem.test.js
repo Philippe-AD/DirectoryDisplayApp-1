@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listDirectory } from './fileSystem';
+import { getElectronFile, listDirectory } from './fileSystem';
 
 function directoryWith(entries) {
   return {
@@ -85,5 +85,26 @@ describe('listDirectory', () => {
     expect(result.files).toEqual([
       { name: 'normal.txt', type: 'file', size: 2, path: '/normal.txt' },
     ]);
+  });
+});
+
+describe('getElectronFile', () => {
+  it('constructs File with proper MIME type from electronAPI buffer', async () => {
+    globalThis.window = globalThis;
+    globalThis.window.electronAPI = {
+      isElectron: true,
+      readFileBuffer: async () => ({
+        buffer: new ArrayBuffer(8),
+        totalSize: 8,
+      }),
+    };
+
+    const file = await getElectronFile('/docs/paper.pdf', 'paper.pdf');
+    expect(file).not.toBeNull();
+    expect(file?.name).toBe('paper.pdf');
+    expect(file?.type).toBe('application/pdf');
+    expect(file?.totalSize).toBe(8);
+
+    delete globalThis.window.electronAPI;
   });
 });
