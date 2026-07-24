@@ -331,8 +331,17 @@ export function renderPreviewModal(
     const syntaxLang = preview.kind === 'text' ? getSyntaxLanguage(item.name) ?? 'markup' : 'markup';
     const highlightedCode = highlightCode(content || '(empty file)', syntaxLang);
 
+    const isTruncated = preview.kind === 'text' && Boolean(preview.truncated);
+    const totalSize = preview.totalSize ?? item.size;
+
     previewBodyHtml = `
       <div class="mt-4">
+        ${isTruncated ? `
+          <div class="mb-3 p-3.5 rounded-2xl bg-amber-50 border border-amber-200/60 text-xs font-medium text-amber-900 flex items-center gap-2.5 shadow-sm" id="preview-truncated-warning">
+            ${icons.alertCircle({ size: 18, className: 'text-amber-600 flex-shrink-0' })}
+            <span>Aperçu limité au premier mégaoctet — taille totale : ${formatFileSize(totalSize)}</span>
+          </div>
+        ` : ''}
         <p class="text-sm font-semibold text-gray-900 mb-2">
           ${preview.kind === 'word' ? 'Word document preview' : 'Preview'}
         </p>

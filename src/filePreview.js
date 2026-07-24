@@ -99,12 +99,20 @@ export function isTextFile(file) {
 export async function readTextPreview(file) {
   if (!isTextFile(file)) return null;
 
-  const truncated = file.size > MAX_TEXT_PREVIEW_BYTES;
-  const content = await file.slice(0, MAX_TEXT_PREVIEW_BYTES).text();
+  try {
+    const totalSize = typeof file.totalSize === 'number' ? file.totalSize : file.size;
+    const truncated = totalSize > MAX_TEXT_PREVIEW_BYTES;
+    const content = await file.slice(0, MAX_TEXT_PREVIEW_BYTES).text();
 
-  return truncated
-    ? `${content}\n\n[Preview truncated after 1.0 MB]`
-    : content;
+    return {
+      content,
+      truncated,
+      totalSize,
+    };
+  } catch (err) {
+    console.error('Failed to read text preview:', err);
+    return null;
+  }
 }
 
 export async function readFilePreview(file) {
@@ -131,8 +139,13 @@ export async function readFilePreview(file) {
     }
   }
 
-  const content = await readTextPreview(file);
-  return content === null
+  const textPreview = await readTextPreview(file);
+  return textPreview === null
     ? { kind: 'unsupported' }
-    : { kind: 'text', content };
+    : {
+        kind: 'text',
+        content: textPreview.content,
+        truncated: textPreview.truncated,
+        totalSize: textPreview.totalSize,
+      };
 }

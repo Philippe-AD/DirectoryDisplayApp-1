@@ -92,13 +92,37 @@ ipcMain.handle('fs:readDirectory', async (_event, dirPath) => {
   }
 });
 
-ipcMain.handle('fs:readFileBuffer', async (_event, filePath) => {
+ipcMain.handle('fs:readFileBuffer', async (_event, filePath, options) => {
+  const maxBytes = typeof options === 'number' ? options : options?.maxBytes;
+  let fileHandle = null;
   try {
-    const buffer = await fs.promises.readFile(filePath);
-    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    fileHandle = await fs.promises.open(filePath, 'r');
+    const stat = await fileHandle.stat();
+    const totalSize = stat.size;
+    const bytesToRead = (typeof maxBytes === 'number' && maxBytes > 0)
+      ? Math.min(totalSize, maxBytes)
+      : totalSize;
+
+    const buffer = Buffer.alloc(bytesToRead);
+    if (bytesToRead > 0) {
+      await fileHandle.read(buffer, 0, bytesToRead, 0);
+    }
+    const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    return {
+      buffer: arrayBuffer,
+      totalSize,
+    };
   } catch (err) {
     console.error('Failed to read file:', filePath, err);
     return null;
+  } finally {
+    if (fileHandle) {
+      try {
+        await fileHandle.close();
+      } catch {
+        // Ignore handle close errors
+      }
+    }
   }
 });
 

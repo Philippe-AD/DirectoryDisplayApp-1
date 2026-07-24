@@ -9,7 +9,9 @@ import {
   isImageFile,
   isPdfFile,
   isWordFile,
+  isTextFile,
   readFilePreview,
+  MAX_TEXT_PREVIEW_BYTES,
 } from './filePreview';
 import {
   renderWelcomeScreen,
@@ -439,7 +441,9 @@ async function handleItemClick(item) {
       }
     } else {
       try {
-        const file = await getElectronFile(item.path, item.name);
+        const isText = isTextFile({ name: item.name, type: '' });
+        const options = isText ? { maxBytes: MAX_TEXT_PREVIEW_BYTES } : undefined;
+        const file = await getElectronFile(item.path, item.name, options);
         if (file) {
           await openFilePreviewModal(item, file);
         } else {

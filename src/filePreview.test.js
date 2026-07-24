@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   MAX_TEXT_PREVIEW_BYTES,
   getFileExtension,
@@ -10,6 +10,7 @@ import {
   readFilePreview,
   readTextPreview,
 } from './filePreview';
+import { renderPreviewModal } from './renderers';
 
 describe('file previews', () => {
   it('recognizes image files by MIME type or extension', () => {
@@ -64,19 +65,89 @@ describe('file previews', () => {
     await expect(readTextPreview(file)).resolves.toBeNull();
   });
 
-  it('limits large text previews', async () => {
-    const file = new File(
-      ['a'.repeat(MAX_TEXT_PREVIEW_BYTES + 10)],
-      'large.txt',
-      { type: 'text/plain' },
-    );
+  it('reads small text file completely without truncation', async () => {
+    const content = 'Hello world, this is a small text file.';
+    const file = new File([content], 'small.txt', { type: 'text/plain' });
 
     const preview = await readTextPreview(file);
+    expect(preview).toEqual({
+      content,
+      truncated: false,
+      totalSize: content.length,
+    });
 
-    expect(preview?.indexOf('\n\n')).toBe(MAX_TEXT_PREVIEW_BYTES);
-    expect(preview?.slice(0, MAX_TEXT_PREVIEW_BYTES)).toBe(
-      'a'.repeat(MAX_TEXT_PREVIEW_BYTES),
-    );
-    expect(preview).toMatch(/\[Preview truncated after 1\.0 MB\]$/);
+    const fullPreview = await readFilePreview(file);
+    expect(fullPreview).toEqual({
+      kind: 'text',
+      content,
+      truncated: false,
+      totalSize: content.length,
+    });
+  });
+
+  it('limits text preview for files > 1 MB and reads only the first megabyte slice', async () => {
+    const mockFile = {
+      name: 'large.txt',
+      type: 'text/plain',
+      size: MAX_TEXT_PREVIEW_BYTES + 500,
+      slice: (start, end) => {
+        return new File(['a'.repeat(end - start)], 'large.txt');
+      },
+    };
+
+    const spySlice = vi.spyOn(mockFile, 'slice');
+
+    const preview = await readTextPreview(mockFile);
+
+    expect(spySlice).toHaveBeenCalledWith(0, MAX_TEXT_PREVIEW_BYTES);
+    expect(preview?.truncated).toBe(true);
+    expect(preview?.totalSize).toBe(MAX_TEXT_PREVIEW_BYTES + 500);
+    expect(preview?.content.length).toBe(MAX_TEXT_PREVIEW_BYTES);
+  });
+
+  it('respects attached file.totalSize property from IPC metadata', async () => {
+    const file = new File(['a'.repeat(100)], 'large.log', { type: 'text/plain' });
+    Object.defineProperty(file, 'totalSize', { value: 10 * 1024 * 1024 });
+
+    const preview = await readTextPreview(file);
+    expect(preview?.truncated).toBe(true);
+    expect(preview?.totalSize).toBe(10 * 1024 * 1024);
+  });
+
+  it('renders truncation notice with total file size in preview modal', () => {
+    const item = { path: '/logs/app.log', name: 'app.log', type: 'file', size: 49073356 };
+    const preview = {
+      kind: 'text',
+      content: 'log data',
+      truncated: true,
+      totalSize: 49073356,
+    };
+
+    const html = renderPreviewModal(item, preview, null);
+
+    expect(html).toContain('Aperçu limité au premier mégaoctet');
+    expect(html).toContain('taille totale : 46.8 MB');
+    expect(html).toContain('id="preview-truncated-warning"');
+  });
+
+  it('handles read errors gracefully without throwing', async () => {
+    const faultyFile = {
+      name: 'broken.txt',
+      type: 'text/plain',
+      size: 100,
+      slice() {
+        return {
+          async text() {
+            throw new Error('Disk read error');
+          },
+        };
+      },
+    };
+
+    const preview = await readTextPreview(faultyFile);
+    expect(preview).toBeNull();
+
+    const fullPreview = await readFilePreview(faultyFile);
+    expect(fullPreview).toEqual({ kind: 'unsupported' });
   });
 });

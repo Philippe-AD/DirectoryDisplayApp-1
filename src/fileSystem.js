@@ -30,11 +30,22 @@ export async function openDirectory() {
   return handle;
 }
 
-export async function getElectronFile(filePath, fileName) {
+export async function getElectronFile(filePath, fileName, options = {}) {
   if (!isElectron() || !window.electronAPI) return null;
-  const buffer = await window.electronAPI.readFileBuffer(filePath);
+  const res = await window.electronAPI.readFileBuffer(filePath, options);
+  if (!res) return null;
+
+  const buffer = res.buffer || (res instanceof ArrayBuffer ? res : null);
   if (!buffer) return null;
-  return new File([buffer], fileName);
+
+  const totalSize = typeof res.totalSize === 'number' ? res.totalSize : buffer.byteLength;
+  const file = new File([buffer], fileName);
+  Object.defineProperty(file, 'totalSize', {
+    value: totalSize,
+    writable: false,
+    configurable: true,
+  });
+  return file;
 }
 
 export async function listDirectory(dir, parentPath = '') {
