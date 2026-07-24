@@ -2,18 +2,14 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 
-// Liste exacte des fichiers et dossiers nécessaires au projet
+// Liste exacte des fichiers et dossiers nécessaires au projet (Vanilla JS)
 const filesToCopy = [
   'src',
   'electron',
   'index.html',
   'package.json',
   'package-lock.json',
-  'tsconfig.json',
-  'tsconfig.app.json',
-  'tsconfig.electron.json',
-  'tsconfig.node.json',
-  'vite.config.ts',
+  'vite.config.js',
   'tailwind.config.js',
   'postcss.config.js',
   'eslint.config.js',

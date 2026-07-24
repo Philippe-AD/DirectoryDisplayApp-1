@@ -19,6 +19,7 @@ describe('file previews', () => {
     expect(isImageFile(new File(['data'], 'anim.webp'))).toBe(true);
     expect(isImageFile(new File(['data'], 'document.pdf'))).toBe(false);
   });
+
   it('recognizes text MIME types and supported text extensions', () => {
     expect(isTextFile(new File(['hello'], 'notes.bin', { type: 'text/plain' }))).toBe(true);
     expect(isTextFile(new File(['{}'], 'settings.json'))).toBe(true);

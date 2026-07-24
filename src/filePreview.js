@@ -1,15 +1,6 @@
 export const MAX_TEXT_PREVIEW_BYTES = 1024 * 1024;
 
-export type FilePreviewResult =
-  | { kind: 'text'; content: string }
-  | { kind: 'word'; content: string }
-  | { kind: 'pdf' }
-  | { kind: 'image' }
-  | { kind: 'unsupported-word' }
-  | { kind: 'word-error' }
-  | { kind: 'unsupported' };
-
-const SYNTAX_LANGUAGE_BY_EXTENSION: Record<string, string> = {
+const SYNTAX_LANGUAGE_BY_EXTENSION = {
   py: 'python',
   java: 'java',
   cs: 'csharp',
@@ -73,39 +64,39 @@ const IMAGE_EXTENSIONS = new Set([
   'apng',
 ]);
 
-export function getFileExtension(name: string): string {
+export function getFileExtension(name) {
   const dotIndex = name.lastIndexOf('.');
   return dotIndex >= 0 ? name.slice(dotIndex + 1).toLowerCase() : '';
 }
 
-export function isImageFile(file: File): boolean {
+export function isImageFile(file) {
   const extension = getFileExtension(file.name);
   return file.type.startsWith('image/') || IMAGE_EXTENSIONS.has(extension);
 }
 
-export function isPdfFile(file: File): boolean {
+export function isPdfFile(file) {
   return file.type === 'application/pdf' || getFileExtension(file.name) === 'pdf';
 }
 
-export function isWordFile(file: File): boolean {
+export function isWordFile(file) {
   const extension = getFileExtension(file.name);
   return extension === 'doc' || extension === 'docx'
     || file.type === 'application/msword'
     || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 }
 
-export function getSyntaxLanguage(name: string): string | null {
+export function getSyntaxLanguage(name) {
   return SYNTAX_LANGUAGE_BY_EXTENSION[getFileExtension(name)] ?? null;
 }
 
-export function isTextFile(file: File): boolean {
+export function isTextFile(file) {
   const extension = getFileExtension(file.name);
   return file.type.startsWith('text/')
     || getSyntaxLanguage(file.name) !== null
     || PLAIN_TEXT_EXTENSION.has(extension);
 }
 
-export async function readTextPreview(file: File): Promise<string | null> {
+export async function readTextPreview(file) {
   if (!isTextFile(file)) return null;
 
   const truncated = file.size > MAX_TEXT_PREVIEW_BYTES;
@@ -116,7 +107,7 @@ export async function readTextPreview(file: File): Promise<string | null> {
     : content;
 }
 
-export async function readFilePreview(file: File): Promise<FilePreviewResult> {
+export async function readFilePreview(file) {
   if (isImageFile(file)) return { kind: 'image' };
   if (isPdfFile(file)) return { kind: 'pdf' };
 

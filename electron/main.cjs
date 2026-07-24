@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
-import * as path from 'path';
-import * as fs from 'fs';
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const path = require('path');
+const fs = require('fs');
 
-let mainWindow: BrowserWindow | null = null;
+let mainWindow = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -54,14 +54,14 @@ ipcMain.handle('dialog:openDirectory', async () => {
   return result.filePaths[0];
 });
 
-ipcMain.handle('fs:readDirectory', async (_event, dirPath: string) => {
+ipcMain.handle('fs:readDirectory', async (_event, dirPath) => {
   try {
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
     const files = await Promise.all(
       entries.map(async (entry) => {
         const fullPath = path.join(dirPath, entry.name);
         const isDirectory = entry.isDirectory();
-        let size: number | undefined = undefined;
+        let size = undefined;
 
         if (!isDirectory) {
           try {
@@ -74,7 +74,7 @@ ipcMain.handle('fs:readDirectory', async (_event, dirPath: string) => {
 
         return {
           name: entry.name,
-          type: isDirectory ? ('directory' as const) : ('file' as const),
+          type: isDirectory ? 'directory' : 'file',
           size,
           path: fullPath.replace(/\\/g, '/'),
         };
@@ -87,12 +87,12 @@ ipcMain.handle('fs:readDirectory', async (_event, dirPath: string) => {
     });
 
     return { files };
-  } catch (err: any) {
+  } catch (err) {
     return { files: [], error: err.message || 'Impossible de lire le dossier.' };
   }
 });
 
-ipcMain.handle('fs:readFileBuffer', async (_event, filePath: string) => {
+ipcMain.handle('fs:readFileBuffer', async (_event, filePath) => {
   try {
     const buffer = await fs.promises.readFile(filePath);
     return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);

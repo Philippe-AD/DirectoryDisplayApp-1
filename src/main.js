@@ -4,44 +4,21 @@ import {
   listDirectory,
   isElectron,
   getElectronFile,
-  type FileItem,
-  type DirectoryHandle,
-  type FileSystemEntryHandle,
 } from './fileSystem';
 import {
   isImageFile,
   isPdfFile,
   isWordFile,
   readFilePreview,
-  type FilePreviewResult,
 } from './filePreview';
 import {
   renderWelcomeScreen,
   renderFallbackUploadScreen,
   renderMainLayout,
   renderPreviewModal,
-  type Crumb,
 } from './renderers';
 
-interface AppState {
-  rootHandle: DirectoryHandle | null;
-  crumbs: Crumb[];
-  items: FileItem[];
-  filtered: FileItem[];
-  search: string;
-  loading: boolean;
-  error: string | null;
-  selectedItem: {
-    item: FileItem;
-    file: File | null;
-    preview: FilePreviewResult;
-  } | null;
-  fallbackItems: FileItem[];
-  usingFallback: boolean;
-  objectUrl: string | null;
-}
-
-const state: AppState = {
+const state = {
   rootHandle: null,
   crumbs: [],
   items: [],
@@ -55,11 +32,11 @@ const state: AppState = {
   objectUrl: null,
 };
 
-let handleMap = new Map<string, FileSystemEntryHandle>();
+let handleMap = new Map();
 let loadRequestId = 0;
-let previouslyFocusedElement: HTMLElement | null = null;
+let previouslyFocusedElement = null;
 
-function getAppElement(): HTMLElement {
+function getAppElement() {
   let el = document.getElementById('app');
   if (!el) {
     el = document.createElement('div');
@@ -69,7 +46,7 @@ function getAppElement(): HTMLElement {
   return el;
 }
 
-function updateObjectUrl(file: File | null) {
+function updateObjectUrl(file) {
   if (state.objectUrl) {
     URL.revokeObjectURL(state.objectUrl);
     state.objectUrl = null;
@@ -136,7 +113,7 @@ function bindWelcomeEvents() {
 
 function bindFallbackUploadEvents() {
   document.getElementById('input-fallback-files')?.addEventListener('change', (e) => {
-    const input = e.target as HTMLInputElement;
+    const input = e.target;
     if (input.files) {
       handleFallbackFiles(input.files);
     }
@@ -156,14 +133,14 @@ function bindMainEvents() {
     render();
   });
 
-  document.querySelectorAll<HTMLButtonElement>('.btn-crumb').forEach((btn) => {
+  document.querySelectorAll('.btn-crumb').forEach((btn) => {
     btn.addEventListener('click', () => {
       const index = parseInt(btn.dataset.crumbIndex || '0', 10);
       navigateToCrumb(index);
     });
   });
 
-  const searchInput = document.getElementById('input-search') as HTMLInputElement | null;
+  const searchInput = document.getElementById('input-search');
   if (searchInput) {
     searchInput.focus();
     // Maintain cursor position at end of input
@@ -171,7 +148,7 @@ function bindMainEvents() {
     searchInput.setSelectionRange(len, len);
 
     searchInput.addEventListener('input', (e) => {
-      onSearch((e.target as HTMLInputElement).value);
+      onSearch(e.target.value);
     });
   }
 
@@ -179,7 +156,7 @@ function bindMainEvents() {
     onSearch('');
   });
 
-  document.querySelectorAll<HTMLButtonElement>('.btn-file-card').forEach((card) => {
+  document.querySelectorAll('.btn-file-card').forEach((card) => {
     card.addEventListener('click', () => {
       const path = card.dataset.itemPath;
       if (!path) return;
@@ -213,11 +190,11 @@ function bindMainEvents() {
 }
 
 function setupModalFocusTrap() {
-  previouslyFocusedElement = document.activeElement as HTMLElement | null;
+  previouslyFocusedElement = document.activeElement;
   const closeBtn = document.getElementById('btn-close-modal');
   closeBtn?.focus();
 
-  const handleKeyDown = (e: KeyboardEvent) => {
+  const handleKeyDown = (e) => {
     if (!state.selectedItem) return;
 
     if (e.key === 'Escape') {
@@ -227,7 +204,7 @@ function setupModalFocusTrap() {
       const dialog = document.getElementById('modal-dialog');
       if (!dialog) return;
 
-      const focusables = dialog.querySelectorAll<HTMLElement>(
+      const focusables = dialog.querySelectorAll(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       );
       if (focusables.length === 0) return;
@@ -262,7 +239,7 @@ function closePreviewModal() {
   }
 }
 
-async function loadDirectory(dir: DirectoryHandle, path: string) {
+async function loadDirectory(dir, path) {
   const requestId = ++loadRequestId;
   state.loading = true;
   state.error = null;
@@ -318,18 +295,18 @@ async function handleOpenFolder() {
   }
 }
 
-const fallbackVirtualFs = new Map<string, FileItem[]>();
-const fallbackAllFiles: FileItem[] = [];
+const fallbackVirtualFs = new Map();
+const fallbackAllFiles = [];
 
-function setupFallbackVirtualFs(fileList: FileList) {
+function setupFallbackVirtualFs(fileList) {
   fallbackVirtualFs.clear();
   fallbackAllFiles.length = 0;
 
-  const folderMap = new Map<string, Map<string, FileItem>>();
-  const getOrCreateFolderMap = (dirPath: string) => {
+  const folderMap = new Map();
+  const getOrCreateFolderMap = (dirPath) => {
     let map = folderMap.get(dirPath);
     if (!map) {
-      map = new Map<string, FileItem>();
+      map = new Map();
       folderMap.set(dirPath, map);
     }
     return map;
@@ -342,7 +319,7 @@ function setupFallbackVirtualFs(fileList: FileList) {
     const rel = rawRel.startsWith('/') ? rawRel : `/${rawRel}`;
     const parts = rel.split('/').filter(Boolean);
 
-    const fileItem: FileItem = {
+    const fileItem = {
       name: f.name,
       type: 'file',
       size: f.size,
@@ -394,11 +371,11 @@ function setupFallbackVirtualFs(fileList: FileList) {
   return { rootFolderName: rootFolderName || 'Files', rootPath };
 }
 
-function handleFallbackFiles(fileList: FileList) {
+function handleFallbackFiles(fileList) {
   const { rootFolderName, rootPath } = setupFallbackVirtualFs(fileList);
   state.usingFallback = true;
   state.rootHandle = null;
-  state.crumbs = [{ name: rootFolderName, path: rootPath, handle: null as any }];
+  state.crumbs = [{ name: rootFolderName, path: rootPath, handle: null }];
   state.search = '';
   state.error = null;
 
@@ -409,13 +386,13 @@ function handleFallbackFiles(fileList: FileList) {
   render();
 }
 
-async function openFilePreviewModal(item: FileItem, file: File) {
+async function openFilePreviewModal(item, file) {
   try {
     const preview = await readFilePreview(file);
     updateObjectUrl(file);
     state.selectedItem = { item, file, preview };
   } catch {
-    const preview: FilePreviewResult = isImageFile(file)
+    const preview = isImageFile(file)
       ? { kind: 'image' }
       : isPdfFile(file)
         ? { kind: 'pdf' }
@@ -428,11 +405,11 @@ async function openFilePreviewModal(item: FileItem, file: File) {
   render();
 }
 
-async function handleItemClick(item: FileItem) {
+async function handleItemClick(item) {
   if (state.usingFallback) {
     if (item.type === 'directory') {
       const subItems = fallbackVirtualFs.get(item.path) || [];
-      state.crumbs.push({ name: item.name, path: item.path, handle: null as any });
+      state.crumbs.push({ name: item.name, path: item.path, handle: null });
       state.items = subItems;
       state.filtered = subItems;
       state.search = '';
@@ -445,7 +422,7 @@ async function handleItemClick(item: FileItem) {
     }
   } else if (isElectron()) {
     if (item.type === 'directory') {
-      const dirHandle: DirectoryHandle = {
+      const dirHandle = {
         kind: 'electron-directory',
         name: item.name,
         path: item.path,
@@ -477,7 +454,7 @@ async function handleItemClick(item: FileItem) {
   } else if (item.type === 'directory') {
     const handle = handleMap.get(item.path);
     if (handle && handle.kind === 'directory') {
-      const dirHandle = handle as unknown as DirectoryHandle;
+      const dirHandle = handle;
       const previousCrumbs = [...state.crumbs];
       state.crumbs.push({ name: item.name, path: item.path, handle: dirHandle });
       state.search = '';
@@ -506,7 +483,7 @@ async function handleItemClick(item: FileItem) {
   }
 }
 
-async function navigateToCrumb(index: number) {
+async function navigateToCrumb(index) {
   const crumb = state.crumbs[index];
   state.crumbs = state.crumbs.slice(0, index + 1);
   state.search = '';
@@ -536,7 +513,7 @@ async function goBack() {
   }
 }
 
-function onSearch(value: string) {
+function onSearch(value) {
   state.search = value;
   const currentCrumb = state.crumbs.length > 0 ? state.crumbs[state.crumbs.length - 1] : null;
   const source = state.usingFallback

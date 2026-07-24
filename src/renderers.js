@@ -1,17 +1,9 @@
 import Prism from 'prismjs';
 import 'prismjs/themes/prism.css';
 import { icons } from './icons';
-import { type FileItem, type DirectoryHandle } from './fileSystem';
-import { getSyntaxLanguage, isImageFile, type FilePreviewResult } from './filePreview';
+import { getSyntaxLanguage, isImageFile } from './filePreview';
 
-export interface ColorPaletteItem {
-  bg: string;
-  light: string;
-  text: string;
-  badge: string;
-}
-
-export const COLOR_PALETTE: ColorPaletteItem[] = [
+export const COLOR_PALETTE = [
   { bg: 'bg-blue-600',    light: 'bg-blue-50',    text: 'text-blue-600',    badge: 'bg-blue-100 text-blue-700' },
   { bg: 'bg-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
   { bg: 'bg-orange-500',  light: 'bg-orange-50',  text: 'text-orange-600',  badge: 'bg-orange-100 text-orange-700' },
@@ -20,12 +12,12 @@ export const COLOR_PALETTE: ColorPaletteItem[] = [
   { bg: 'bg-rose-600',    light: 'bg-rose-50',    text: 'text-rose-600',    badge: 'bg-rose-100 text-rose-700' },
 ];
 
-export function getColorForPath(path: string): ColorPaletteItem {
+export function getColorForPath(path) {
   const hash = path.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
   return COLOR_PALETTE[hash % COLOR_PALETTE.length];
 }
 
-export function formatFileSize(bytes?: number): string {
+export function formatFileSize(bytes) {
   if (bytes === undefined || bytes === null) return '';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -33,19 +25,12 @@ export function formatFileSize(bytes?: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-export function getFileExtension(name: string): string {
+export function getFileExtension(name) {
   const parts = name.split('.');
   return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : 'FILE';
 }
 
-export interface Crumb {
-  name: string;
-  path: string;
-  handle: DirectoryHandle;
-}
-
-export function renderWelcomeScreen(error: string | null): string {
-
+export function renderWelcomeScreen(error) {
   return `
     <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
       <div class="max-w-2xl mx-auto px-4 pt-20 pb-12">
@@ -116,7 +101,7 @@ export function renderWelcomeScreen(error: string | null): string {
   `;
 }
 
-export function renderFallbackUploadScreen(): string {
+export function renderFallbackUploadScreen() {
   return `
     <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
       <div class="max-w-2xl mx-auto px-4 pt-20 pb-12">
@@ -154,7 +139,7 @@ export function renderFallbackUploadScreen(): string {
   `;
 }
 
-export function renderFileCard(item: FileItem): string {
+export function renderFileCard(item) {
   const color = getColorForPath(item.path);
   const isDocument = item.type === 'file' && (/\.(pdf|docx?)$/i.test(item.name));
   const isImage = item.type === 'file' && (item.file ? isImageFile(item.file) : /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif|tiff|apng)$/i.test(item.name));
@@ -189,15 +174,15 @@ export function renderFileCard(item: FileItem): string {
 }
 
 export function renderMainLayout(
-  displayName: string,
-  currentPath: string,
-  crumbs: Crumb[],
-  items: FileItem[],
-  loading: boolean,
-  search: string,
-  usingFallback: boolean,
-  error: string | null = null
-): string {
+  displayName,
+  currentPath,
+  crumbs,
+  items,
+  loading,
+  search,
+  usingFallback,
+  error = null
+) {
   const color = getColorForPath(currentPath || '/files');
 
   const crumbsHtml = crumbs.length > 1 ? `
@@ -327,10 +312,10 @@ export function renderMainLayout(
 }
 
 export function renderPreviewModal(
-  item: FileItem,
-  preview: FilePreviewResult,
-  objectUrl: string | null
-): string {
+  item,
+  preview,
+  objectUrl
+) {
   const color = getColorForPath(item.path);
   const titleId = `file-preview-${item.path.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   const content = preview.kind === 'text' || preview.kind === 'word' ? preview.content : null;
@@ -469,7 +454,7 @@ export function renderPreviewModal(
   `;
 }
 
-function highlightCode(code: string, lang: string): string {
+function highlightCode(code, lang) {
   const grammar = Prism.languages[lang] || Prism.languages.markup;
   try {
     return Prism.highlight(code, grammar, lang);
@@ -478,7 +463,7 @@ function highlightCode(code: string, lang: string): string {
   }
 }
 
-function escapeHtml(str: string): string {
+function escapeHtml(str) {
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

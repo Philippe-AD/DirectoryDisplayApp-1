@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import {
-  listDirectory,
-  type DirectoryHandle,
-  type FileSystemEntryHandle,
-} from './fileSystem';
+import { listDirectory } from './fileSystem';
 
-function directoryWith(entries: FileSystemEntryHandle[]): DirectoryHandle {
+function directoryWith(entries) {
   return {
     kind: 'directory',
     name: 'root',
@@ -55,7 +51,7 @@ describe('listDirectory', () => {
   });
 
   it('continues listing readable entries when a system entry iterator throws an error', async () => {
-    const dir: DirectoryHandle = {
+    const dir = {
       kind: 'directory',
       name: 'root',
       values() {
@@ -79,9 +75,9 @@ describe('listDirectory', () => {
             if (step === 2) {
               throw new DOMException('System volume access denied', 'SecurityError');
             }
-            return { done: true, value: undefined as any };
+            return { done: true, value: undefined };
           },
-        } as any;
+        };
       },
     };
 
