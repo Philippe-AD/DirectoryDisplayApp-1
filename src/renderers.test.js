@@ -174,6 +174,7 @@ describe('renderers & UI layout', () => {
     expect(htmlExpanded).toContain('id="app-header"');
     expect(htmlExpanded).toContain('id="btn-toggle-header"');
     expect(htmlExpanded).toContain('Réduire');
+    expect(htmlExpanded).not.toContain('-mt-5');
 
     expect(htmlCollapsed).toContain('id="app-header"');
     expect(htmlCollapsed).toContain('id="btn-toggle-header"');

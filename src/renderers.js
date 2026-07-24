@@ -595,12 +595,12 @@ export function renderMainLayout(
   return `
     <div class="h-screen flex flex-col bg-gray-50 overflow-hidden">
       <!-- Fixed Header Bar -->
-      <header id="app-header" class="${color.bg} px-6 ${isHeaderCollapsed ? 'py-2.5' : 'pt-5 pb-8'} shadow-md transition-all duration-200 z-20 flex-shrink-0">
+      <header id="app-header" class="${color.bg} px-6 ${isHeaderCollapsed ? 'py-2.5' : 'py-4'} shadow-md transition-all duration-200 z-20 flex-shrink-0">
         ${headerContentHtml}
       </header>
 
       <!-- Main Layout Content -->
-      <div class="flex-1 max-w-7xl w-full mx-auto px-4 ${isHeaderCollapsed ? 'pt-3' : '-mt-5'} pb-4 flex flex-col md:flex-row gap-0 overflow-hidden">
+      <div class="flex-1 max-w-7xl w-full mx-auto px-4 pt-3 pb-4 flex flex-col md:flex-row gap-0 overflow-hidden">
         <!-- Zone 1: File Navigation & List -->
         <div id="file-list-container" class="flex-1 flex flex-col min-w-[260px] h-full overflow-hidden pr-0 md:pr-1">
           <!-- Search input -->
