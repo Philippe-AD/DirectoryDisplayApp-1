@@ -38,46 +38,27 @@ export function renderWelcomeScreen(error) {
           <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-3xl shadow-lg shadow-blue-600/20 mb-6">
             ${icons.hardDrive({ size: 32, className: 'text-white' })}
           </div>
-          <h1 class="text-4xl font-bold text-gray-900 tracking-tight">File Explorer</h1>
-          <p class="text-gray-500 mt-3 text-lg">Browse a folder right on your computer</p>
+          <h1 class="text-4xl font-bold text-gray-900 tracking-tight">Explorateur de répertoires</h1>
+          <p class="text-gray-500 mt-3 text-lg">Parcourez et prévisualisez n'importe quel dossier de votre ordinateur</p>
         </div>
 
         <div class="bg-white rounded-3xl border border-gray-100 shadow-xl p-8 space-y-6">
-          <div class="space-y-3">
-            <div class="flex items-center gap-3">
-              <div class="p-2.5 bg-blue-50 rounded-xl">
-                ${icons.folderOpen({ size: 24, className: 'text-blue-600' })}
+          <div class="space-y-4">
+            <div class="flex items-center gap-3.5">
+              <div class="p-3 bg-blue-50 rounded-2xl">
+                ${icons.folderOpen({ size: 28, className: 'text-blue-600' })}
               </div>
               <div>
-                <h2 class="font-semibold text-gray-900">Ouvrir un dossier</h2>
-                <p class="text-sm text-gray-500">Pour vos dossiers personnels (Documents, Images, Projets)</p>
+                <h2 class="text-lg font-semibold text-gray-900">Ouvrir un dossier</h2>
+                <p class="text-sm text-gray-500">Sélectionnez n'importe quel dossier local pour afficher son contenu</p>
               </div>
             </div>
             <button
               id="btn-open-folder"
-              class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-2xl transition-colors shadow-md shadow-blue-600/20"
+              class="w-full flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 text-base rounded-2xl transition-all shadow-md shadow-blue-600/20 active:scale-[0.99]"
             >
-              ${icons.folderOpen({ size: 20 })}
-              Ouvrir un dossier (Explorateur rapide)
-            </button>
-          </div>
-
-          <div class="border-t border-gray-100 pt-6 space-y-3">
-            <div class="flex items-center gap-3">
-              <div class="p-2.5 bg-emerald-50 rounded-xl">
-                ${icons.hardDrive({ size: 24, className: 'text-emerald-600' })}
-              </div>
-              <div>
-                <h2 class="font-semibold text-gray-900">Mode Compatibilité / Dossier système</h2>
-                <p class="text-sm text-gray-500">Permet d'ouvrir n'importe quel dossier, y compris les dossiers système ou protégés</p>
-              </div>
-            </div>
-            <button
-              id="btn-use-fallback"
-              class="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3.5 rounded-2xl transition-colors shadow-md shadow-emerald-600/20"
-            >
-              ${icons.upload({ size: 20 })}
-              Choisir un dossier (Mode Compatibilité Système)
+              ${icons.folderOpen({ size: 22 })}
+              Ouvrir un dossier
             </button>
           </div>
 
