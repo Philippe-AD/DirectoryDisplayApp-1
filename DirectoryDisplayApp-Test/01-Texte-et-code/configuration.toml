@@ -1,0 +1,6 @@
+application = "DirectoryDisplayApp"
+version = "test"
+
+[preview]
+enabled = true
+maximum_bytes = 1048576

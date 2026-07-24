@@ -1,0 +1,10 @@
+type FileEntry {
+  id: ID!
+  name: String!
+  sizeBytes: Int!
+  mimeType: String
+}
+
+type Query {
+  files: [FileEntry!]!
+}

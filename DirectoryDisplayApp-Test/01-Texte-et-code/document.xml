@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<directory-display-app>
+  <preview enabled="true" maximum-bytes="1048576"/>
+  <file type="text">texte-simple.txt</file>
+  <file type="image">image-test.png</file>
+</directory-display-app>

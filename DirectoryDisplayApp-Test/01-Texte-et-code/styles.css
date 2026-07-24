@@ -1,0 +1,9 @@
+:root {
+  color-scheme: light dark;
+  --panel-width: 420px;
+}
+
+.preview-panel {
+  width: var(--panel-width);
+  overflow: auto;
+}

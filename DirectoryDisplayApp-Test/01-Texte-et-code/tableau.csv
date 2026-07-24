@@ -1,0 +1,4 @@
+id;nom;type;taille
+1;Document texte;txt;512
+2;Image;png;4096
+3;Document PDF;pdf;8192

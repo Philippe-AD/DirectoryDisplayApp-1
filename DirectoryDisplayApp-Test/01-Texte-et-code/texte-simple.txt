@@ -1,0 +1,8 @@
+DirectoryDisplayApp — fichier texte de test
+
+Accents : é è ê ë à â ç î ï ô ö ù û ü œ
+Symboles : € CHF £ ¥ © ® ™ ✓ → ←
+Emoji : 📁 🔍 🖼️ 🎵
+
+Ligne courte.
+Ligne volontairement beaucoup plus longue afin de vérifier le retour automatique à la ligne, le défilement horizontal et la façon dont l’aperçu réagit à un contenu dépassant la largeur disponible dans le panneau.

@@ -1,0 +1,11 @@
+{
+  "application": "DirectoryDisplayApp",
+  "version": "test",
+  "preview": true,
+  "maximumBytes": 1048576,
+  "languages": ["fr", "en", "de"],
+  "nested": {
+    "accented": "Genève",
+    "unicode": "📁"
+  }
+}

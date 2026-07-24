@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1">
+      <stop offset="0" stop-color="#dbeafe"/>
+      <stop offset="1" stop-color="#bfdbfe"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#g)"/>
+  <circle cx="115" cy="180" r="72" fill="#2563eb"/>
+  <rect x="230" y="105" width="330" height="150" rx="18" fill="#ffffff"/>
+  <text x="260" y="170" font-family="Segoe UI, sans-serif" font-size="34" fill="#111827">DirectoryDisplayApp</text>
+  <text x="260" y="215" font-family="Segoe UI, sans-serif" font-size="22" fill="#4b5563">Image SVG de test</text>
+</svg>

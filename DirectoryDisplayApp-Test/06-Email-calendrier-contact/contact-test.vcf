@@ -1,0 +1,9 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:Utilisateur Test
+N:Test;Utilisateur;;;
+ORG:DirectoryDisplayApp
+EMAIL:test@example.com
+TEL:+41220000000
+NOTE:Contact de test
+END:VCARD

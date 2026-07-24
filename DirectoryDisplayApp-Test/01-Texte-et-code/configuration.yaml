@@ -1,0 +1,9 @@
+application: DirectoryDisplayApp
+preview:
+  enabled: true
+  maximumBytes: 1048576
+formats:
+  - text
+  - image
+  - pdf
+  - audio
