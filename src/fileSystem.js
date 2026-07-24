@@ -118,3 +118,11 @@ export async function listDirectory(dir, parentPath = '') {
 
   return { files, handles };
 }
+
+export async function openExternalFile(filePath) {
+  if (isElectron() && window.electronAPI?.openExternal) {
+    return await window.electronAPI.openExternal(filePath);
+  }
+  return { success: true };
+}
+

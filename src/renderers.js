@@ -187,7 +187,7 @@ export function renderTreeNode(node, isSelected = false) {
       <div class="my-1 ml-5 p-1.5 bg-red-50 border border-red-200 rounded text-[11px] text-red-700 flex items-center justify-between gap-2">
         <div class="flex items-center gap-1 min-w-0">
           ${icons.alertCircle({ size: 13, className: 'text-red-600 flex-shrink-0' })}
-          <span class="truncate">${escapeHtml(node.error)}</span>
+          <span class="truncate">${escapeHtml(node.error)} — Aucun fichier n'a été modifié.</span>
         </div>
         <button
           type="button"
@@ -203,6 +203,7 @@ export function renderTreeNode(node, isSelected = false) {
   return `
     <div
       role="treeitem"
+      draggable="false"
       tabindex="${isSelected ? '0' : '-1'}"
       data-node-path="${escapeHtml(node.path)}"
       data-node-type="${escapeHtml(node.type)}"
@@ -428,17 +429,29 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
         ${icons.alertCircle({ size: 16, className: 'text-amber-600 flex-shrink-0 mt-0.5' })}
         <div>
           <p class="font-semibold text-xs">Format Word hérité (.doc)</p>
-          <p class="mt-0.5 text-[11px] text-amber-800">Les fichiers .doc ne peuvent pas être prévisualisés directement. Téléchargez le fichier pour l'ouvrir dans Microsoft Word.</p>
+          <p class="mt-0.5 text-[11px] text-amber-800">Les fichiers .doc ne peuvent pas être prévisualisés directement. Aucun fichier n'a été modifié.</p>
         </div>
       </div>
     `;
   } else if (preview.kind === 'word-error' || previewState.status === 'word-error' || previewState.status === 'error') {
+    const rawError = previewState.error || '';
+    let errorMessageText = 'Ce fichier ne peut pas être prévisualisé. Aucun fichier n\'a été modifié.';
+    if (/accès refusé|permission|denied|eacces|eperm/i.test(rawError)) {
+      errorMessageText = 'Accès refusé. Vous n\'avez pas la permission de lire ce fichier. Aucun fichier n\'a été modifié.';
+    } else if (/introuvable|not found|enoent/i.test(rawError)) {
+      errorMessageText = 'Fichier introuvable. Le fichier n\'existe plus à cet emplacement. Aucun fichier n\'a été modifié.';
+    } else if (/déplacé|moved/i.test(rawError)) {
+      errorMessageText = 'Le fichier a été déplacé depuis la dernière actualisation. Aucun fichier n\'a été modifié.';
+    } else if (/verrouillé|locked|ebusy/i.test(rawError)) {
+      errorMessageText = 'Le fichier est verrouillé par une autre application. Aucun fichier n\'a été modifié.';
+    }
+
     previewBodyHtml = `
       <div class="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-900 flex items-start gap-2">
         ${icons.alertCircle({ size: 16, className: 'text-red-600 flex-shrink-0 mt-0.5' })}
         <div>
           <p class="font-semibold text-xs">Erreur de lecture</p>
-          <p class="mt-0.5 text-[11px] text-red-800">Impossible de lire le contenu de ce fichier. Il est peut-être corrompu ou protégé.</p>
+          <p class="mt-0.5 text-[11px] text-red-800">${escapeHtml(errorMessageText)}</p>
         </div>
       </div>
     `;
@@ -448,7 +461,7 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
         ${icons.alertCircle({ size: 16, className: 'text-slate-400 flex-shrink-0 mt-0.5' })}
         <div>
           <p class="font-semibold text-xs">Format non pris en charge</p>
-          <p class="mt-0.5 text-[11px] text-slate-500">Aucun aperçu disponible dans l'application pour ce type de fichier.</p>
+          <p class="mt-0.5 text-[11px] text-slate-500">Ce format de fichier n'est pas pris en charge pour la prévisualisation. Aucun fichier n'a été modifié.</p>
         </div>
       </div>
     `;
@@ -487,21 +500,87 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
           </div>
         </div>
 
-        ${objectUrl ? `
-          <a
-            href="${objectUrl}"
-            download="${escapeHtml(selectedItem.name)}"
-            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-[11px] font-medium text-white transition-colors shadow-2xs flex-shrink-0"
-            title="Télécharger le fichier"
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button
+            id="btn-open-external"
+            type="button"
+            data-file-path="${escapeHtml(selectedItem.path)}"
+            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] font-medium text-slate-200 border border-slate-700/60 transition-colors shadow-2xs flex-shrink-0"
+            title="Ouvrir avec une application externe"
+            aria-label="Ouvrir avec une application externe"
           >
-            ${icons.download({ size: 14 })}
-            <span class="hidden sm:inline">Télécharger</span>
-          </a>
-        ` : ''}
+            ${icons.externalLink({ size: 14 })}
+            <span class="hidden sm:inline">Ouvrir avec…</span>
+          </button>
+
+          ${objectUrl ? `
+            <a
+              href="${objectUrl}"
+              download="${escapeHtml(selectedItem.name)}"
+              class="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-[11px] font-medium text-white transition-colors shadow-2xs flex-shrink-0"
+              title="Enregistrer une copie du fichier"
+              aria-label="Enregistrer une copie du fichier"
+            >
+              ${icons.download({ size: 14 })}
+              <span class="hidden sm:inline">Enregistrer une copie…</span>
+            </a>
+          ` : ''}
+        </div>
       </div>
 
       <!-- Preview Body -->
       ${previewBodyHtml}
+    </div>
+  `;
+}
+
+export function renderExternalOpenModal() {
+  return `
+    <div
+      id="modal-external-open-overlay"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 backdrop-blur-xs p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-external-title"
+    >
+      <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-md w-full shadow-2xl text-slate-100 space-y-4">
+        <div class="flex items-center gap-3 text-amber-400">
+          <div class="p-2 bg-amber-500/15 border border-amber-500/30 rounded-lg flex-shrink-0">
+            ${icons.alertCircle({ size: 22 })}
+          </div>
+          <h2 id="modal-external-title" class="text-sm font-bold text-white">Ouverture dans une application externe</h2>
+        </div>
+
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Ce fichier va être ouvert dans une autre application. Cette application pourra éventuellement le modifier.
+        </p>
+
+        <label class="flex items-center gap-2.5 text-xs text-slate-400 cursor-pointer pt-1 select-none">
+          <input
+            type="checkbox"
+            id="chk-skip-external-warning"
+            class="w-4 h-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
+          />
+          <span>Ne plus afficher cet avertissement pendant cette session</span>
+        </label>
+
+        <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-700/80">
+          <button
+            id="btn-modal-cancel"
+            type="button"
+            class="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+          >
+            Annuler
+          </button>
+          <button
+            id="btn-modal-confirm"
+            type="button"
+            class="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-amber-600 hover:bg-amber-500 text-white transition-colors shadow-2xs focus:outline-none focus:ring-2 focus:ring-amber-400"
+          >
+            Ouvrir quand même
+          </button>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -519,7 +598,9 @@ export function renderMainLayout(
   objectUrl = null,
   isPanelVisible = true,
   panelWidth = 380,
-  isHeaderCollapsed = false
+  isHeaderCollapsed = false,
+  isTreeVisible = true,
+  showExternalOpenModal = false
 ) {
   const selectedPath = selectedItem ? selectedItem.path : null;
 
@@ -540,6 +621,19 @@ export function renderMainLayout(
     contentHtml = renderTreeView(visibleNodes, selectedPath);
   }
 
+  const consultationIndicatorHtml = `
+    <div
+      id="consultation-mode-indicator"
+      role="status"
+      aria-live="polite"
+      aria-label="Mode consultation — aucun fichier ne peut être modifié"
+      class="flex items-center gap-1.5 px-3 py-1 bg-emerald-950/60 text-emerald-300 border border-emerald-500/40 rounded-full text-xs font-medium select-none shadow-2xs flex-shrink-0"
+    >
+      ${icons.lock({ size: 14, className: 'text-emerald-400 flex-shrink-0' })}
+      <span class="truncate">Mode consultation — aucun fichier ne peut être modifié</span>
+    </div>
+  `;
+
   const headerContentHtml = isHeaderCollapsed
     ? `
       <div class="flex items-center justify-between gap-4 w-full">
@@ -552,6 +646,8 @@ export function renderMainLayout(
             <span class="text-slate-400 text-[11px] font-mono hidden md:inline truncate max-w-xs">(${escapeHtml(currentPath)})</span>
           </div>
         </div>
+
+        ${consultationIndicatorHtml}
 
         <div class="flex items-center gap-1.5 flex-shrink-0">
           <button
@@ -567,21 +663,21 @@ export function renderMainLayout(
           <button
             id="btn-toggle-header"
             class="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-xs font-medium transition-colors border border-slate-700/60"
-            aria-label="Agrandir l'en-tête"
-            title="Agrandir l'en-tête"
+            aria-label="Agrandir l'aperçu"
+            title="Agrandir l'aperçu"
           >
             ${icons.chevronDown({ size: 13 })}
-            <span class="hidden sm:inline">Agrandir</span>
+            <span class="hidden sm:inline">Agrandir l’aperçu</span>
           </button>
 
           <button
-            id="btn-toggle-panel"
+            id="btn-toggle-tree"
             class="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-xs font-medium transition-colors border border-slate-700/60"
-            aria-label="${isPanelVisible ? 'Masquer le panneau' : 'Afficher le panneau'}"
-            title="${isPanelVisible ? 'Masquer le panneau' : 'Afficher le panneau'}"
+            aria-label="${isTreeVisible ? 'Masquer l’arborescence' : 'Afficher l’arborescence'}"
+            title="${isTreeVisible ? 'Masquer l’arborescence' : 'Afficher l’arborescence'}"
           >
-            ${isPanelVisible ? icons.eyeOff({ size: 13 }) : icons.eye({ size: 13 })}
-            <span class="hidden sm:inline">${isPanelVisible ? 'Masquer' : 'Panneau'}</span>
+            ${isTreeVisible ? icons.eyeOff({ size: 13 }) : icons.eye({ size: 13 })}
+            <span class="hidden sm:inline">${isTreeVisible ? 'Masquer l’arborescence' : 'Afficher l’arborescence'}</span>
           </button>
 
           ${!usingFallback ? `
@@ -613,6 +709,8 @@ export function renderMainLayout(
           </div>
         </div>
 
+        ${consultationIndicatorHtml}
+
         <div class="flex items-center gap-1.5 flex-shrink-0">
           <button
             id="btn-refresh-root"
@@ -627,21 +725,21 @@ export function renderMainLayout(
           <button
             id="btn-toggle-header"
             class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1.5 rounded text-xs font-medium transition-colors border border-slate-700/60"
-            aria-label="Réduire l'en-tête"
-            title="Réduire l'en-tête"
+            aria-label="Agrandir l’aperçu"
+            title="Agrandir l’aperçu"
           >
             ${icons.chevronUp({ size: 14 })}
-            <span class="hidden sm:inline">Réduire</span>
+            <span class="hidden sm:inline">Agrandir l’aperçu</span>
           </button>
 
           <button
-            id="btn-toggle-panel"
+            id="btn-toggle-tree"
             class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1.5 rounded text-xs font-medium transition-colors border border-slate-700/60"
-            aria-label="${isPanelVisible ? 'Masquer le panneau de prévisualisation' : 'Afficher le panneau de prévisualisation'}"
-            title="${isPanelVisible ? 'Masquer le panneau' : 'Afficher le panneau'}"
+            aria-label="${isTreeVisible ? 'Masquer l’arborescence' : 'Afficher l’arborescence'}"
+            title="${isTreeVisible ? 'Masquer l’arborescence' : 'Afficher l’arborescence'}"
           >
-            ${isPanelVisible ? icons.eyeOff({ size: 14 }) : icons.eye({ size: 14 })}
-            <span class="hidden sm:inline">${isPanelVisible ? 'Masquer panneau' : 'Afficher panneau'}</span>
+            ${isTreeVisible ? icons.eyeOff({ size: 14 }) : icons.eye({ size: 14 })}
+            <span class="hidden sm:inline">${isTreeVisible ? 'Masquer l’arborescence' : 'Afficher l’arborescence'}</span>
           </button>
 
           ${!usingFallback ? `
@@ -667,7 +765,7 @@ export function renderMainLayout(
       <!-- Main Layout Content -->
       <div class="flex-1 w-full p-2 flex flex-row overflow-hidden gap-1.5">
         <!-- Zone 1: Unique TreeView Navigation -->
-        <div id="file-list-container" class="flex flex-col min-w-[240px] max-w-[600px] h-full overflow-hidden bg-white rounded-lg border border-slate-200/90 shadow-2xs">
+        <div id="file-list-container" class="${isTreeVisible ? 'flex' : 'hidden'} flex-col min-w-[240px] max-w-[600px] h-full overflow-hidden bg-white rounded-lg border border-slate-200/90 shadow-2xs">
           <!-- Search input bar -->
           <div class="p-2 border-b border-slate-100 flex-shrink-0 bg-slate-50/50">
             <div class="relative">
@@ -708,7 +806,7 @@ export function renderMainLayout(
         </div>
 
         <!-- Zone 2: Draggable Resizer Separator -->
-        ${isPanelVisible ? `
+        ${isPanelVisible && isTreeVisible ? `
           <div
             id="resizer"
             role="separator"
@@ -727,11 +825,13 @@ export function renderMainLayout(
         <div
           id="preview-panel-container"
           class="${isPanelVisible ? 'flex' : 'hidden'} flex-col min-w-[300px] ${isPanelVisible ? 'w-full md:w-auto' : ''} flex-1 h-full overflow-hidden"
-          style="${isPanelVisible ? `width: ${panelWidth}px; flex: 1 1 ${panelWidth}px;` : ''}"
+          style="${isPanelVisible && isTreeVisible ? `width: ${panelWidth}px; flex: 1 1 ${panelWidth}px;` : ''}"
         >
           ${renderPreviewPanel(selectedItem, previewState, objectUrl)}
         </div>
       </div>
+
+      ${showExternalOpenModal ? renderExternalOpenModal() : ''}
     </div>
   `;
 }
@@ -754,3 +854,4 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+

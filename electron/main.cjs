@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -43,7 +43,21 @@ function createWindow() {
 }
 
 // IPC Handlers
+ipcMain.handle('app:openExternal', async (_event, filePath) => {
+  if (!filePath) return { success: false, error: 'Chemin invalide' };
+  try {
+    const errorMsg = await shell.openPath(filePath);
+    if (errorMsg) {
+      return { success: false, error: errorMsg };
+    }
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message || 'Impossible d\'ouvrir le fichier.' };
+  }
+});
+
 ipcMain.handle('dialog:openDirectory', async () => {
+
   if (!mainWindow) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory'],

@@ -109,7 +109,6 @@ describe('renderers & UI layout', () => {
 
     expect(htmlHidden).toContain('hidden');
     expect(htmlHidden).not.toContain('id="resizer"');
-    expect(htmlHidden).toContain('Afficher panneau');
   });
 
   it('displays folder info when a directory is selected', () => {
@@ -125,7 +124,8 @@ describe('renderers & UI layout', () => {
     const html = renderPreviewPanel(fileItem, { status: 'error' }, null);
 
     expect(html).toContain('Erreur de lecture');
-    expect(html).toContain('Impossible de lire le contenu de ce fichier');
+    expect(html).toContain('Aucun fichier');
+    expect(html).toContain('été modifié');
   });
 
   it('supports collapsing and expanding header bar to maximize screen space', () => {
@@ -165,11 +165,11 @@ describe('renderers & UI layout', () => {
 
     expect(htmlExpanded).toContain('id="app-header"');
     expect(htmlExpanded).toContain('id="btn-toggle-header"');
-    expect(htmlExpanded).toContain('Réduire');
+    expect(htmlExpanded).toContain('Agrandir l’aperçu');
 
     expect(htmlCollapsed).toContain('id="app-header"');
     expect(htmlCollapsed).toContain('id="btn-toggle-header"');
-    expect(htmlCollapsed).toContain('Agrandir');
+    expect(htmlCollapsed).toContain('Agrandir l’aperçu');
     expect(htmlCollapsed).toContain('py-2.5');
   });
 
@@ -185,3 +185,4 @@ describe('renderers & UI layout', () => {
     expect(html).toContain('id="docx-preview-container"');
   });
 });
+

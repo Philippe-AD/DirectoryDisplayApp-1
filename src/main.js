@@ -4,6 +4,7 @@ import {
   listDirectory,
   isElectron,
   getElectronFile,
+  openExternalFile,
 } from './fileSystem';
 import {
   isTextFile,
@@ -26,17 +27,32 @@ const state = {
   loading: false,
   error: null,
   selectedItem: null,
-  previewState: { status: 'idle', preview: null },
+  previewState: { status: 'idle', preview: null, error: null },
   isPreviewPanelVisible: true,
   panelWidth: 380,
   isHeaderCollapsed: false,
   usingFallback: false,
   objectUrl: null,
+  isTreeVisible: true,
+  showExternalOpenModal: false,
+  skipExternalOpenWarning: false,
+  pendingExternalOpenPath: null,
 };
 
 let previewRequestId = 0;
 let isKeyboardListenerAttached = false;
+let isFileProtectionListenersAttached = false;
 const handleMap = new Map(); // Map<path, handle>
+
+function attachFileProtectionListeners() {
+  if (isFileProtectionListenersAttached) return;
+  isFileProtectionListenersAttached = true;
+
+  window.addEventListener('dragstart', (e) => e.preventDefault());
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => e.preventDefault());
+  window.addEventListener('contextmenu', (e) => e.preventDefault());
+}
 
 function getAppElement() {
   let el = document.getElementById('app');
@@ -106,6 +122,8 @@ export function getVisibleTreeNodes(treeRootPath, nodeMap, search = '') {
 }
 
 function render() {
+  attachFileProtectionListeners();
+
   const root = getAppElement();
 
   if (!state.rootHandle && !state.usingFallback) {
@@ -142,7 +160,9 @@ function render() {
     state.objectUrl,
     state.isPreviewPanelVisible,
     state.panelWidth,
-    state.isHeaderCollapsed
+    state.isHeaderCollapsed,
+    state.isTreeVisible,
+    state.showExternalOpenModal
   );
 
   root.innerHTML = html;
@@ -176,7 +196,7 @@ async function renderDocxPreview(arrayBuffer, container) {
     console.error('Failed to render DOCX preview:', err);
     container.innerHTML = `
       <div class="p-4 rounded-xl bg-red-50 text-xs text-red-700">
-        Impossible d'afficher la mise en page du document Word.
+        Impossible d'afficher la mise en page du document Word. Aucun fichier n'a été modifié.
       </div>
     `;
   }
@@ -219,6 +239,11 @@ function bindMainEvents() {
 
   document.getElementById('btn-toggle-header')?.addEventListener('click', () => {
     state.isHeaderCollapsed = !state.isHeaderCollapsed;
+    render();
+  });
+
+  document.getElementById('btn-toggle-tree')?.addEventListener('click', () => {
+    state.isTreeVisible = !state.isTreeVisible;
     render();
   });
 
@@ -291,13 +316,55 @@ function bindMainEvents() {
     state.treeRootPath = null;
     state.usingFallback = false;
     state.selectedItem = null;
-    state.previewState = { status: 'idle', preview: null };
+    state.previewState = { status: 'idle', preview: null, error: null };
     updateObjectUrl(null);
     handleMap.clear();
     render();
   });
 
+  document.getElementById('btn-open-external')?.addEventListener('click', (e) => {
+    const filePath = e.currentTarget.dataset.filePath || state.selectedItem?.path;
+    if (filePath) {
+      requestExternalOpen(filePath);
+    }
+  });
+
+  if (state.showExternalOpenModal) {
+    document.getElementById('btn-modal-cancel')?.addEventListener('click', cancelExternalOpen);
+    document.getElementById('btn-modal-confirm')?.addEventListener('click', confirmExternalOpen);
+  }
+
   setupResizer();
+}
+
+export function requestExternalOpen(filePath) {
+  if (state.skipExternalOpenWarning) {
+    openExternalFile(filePath);
+    return;
+  }
+  state.pendingExternalOpenPath = filePath;
+  state.showExternalOpenModal = true;
+  render();
+}
+
+export function confirmExternalOpen() {
+  const chk = document.getElementById('chk-skip-external-warning');
+  if (chk && chk.checked) {
+    state.skipExternalOpenWarning = true;
+  }
+  const filePath = state.pendingExternalOpenPath;
+  state.showExternalOpenModal = false;
+  state.pendingExternalOpenPath = null;
+  render();
+  if (filePath) {
+    openExternalFile(filePath);
+  }
+}
+
+export function cancelExternalOpen() {
+  state.showExternalOpenModal = false;
+  state.pendingExternalOpenPath = null;
+  render();
 }
 
 function setupResizer() {
@@ -337,7 +404,28 @@ function attachGlobalKeyboardListener() {
 
   window.addEventListener('keydown', (e) => {
     const activeTag = document.activeElement ? document.activeElement.tagName.toUpperCase() : '';
-    if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || document.activeElement?.isContentEditable) {
+    const isEditingText = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || Boolean(document.activeElement?.isContentEditable);
+
+    // Prevent destructive keys (Delete, Backspace) from modifying anything outside text inputs
+    if (e.key === 'Delete' || e.key === 'Del' || (e.key === 'Backspace' && !isEditingText)) {
+      if (!isEditingText) {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (state.showExternalOpenModal) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        cancelExternalOpen();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmExternalOpen();
+      }
+      return;
+    }
+
+    if (isEditingText) {
       return;
     }
 
@@ -404,6 +492,7 @@ function attachGlobalKeyboardListener() {
     }
   });
 }
+
 
 function scrollToSelectedNode() {
   const selectedEl = document.querySelector('[aria-selected="true"]');
