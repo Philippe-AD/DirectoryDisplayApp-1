@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   renderMainLayout,
   renderPreviewPanel,
-  renderFileCard,
+  renderTreeNode,
   formatFileSize,
 } from './renderers';
 
@@ -14,22 +14,22 @@ describe('renderers & UI layout', () => {
     expect(formatFileSize(2147483648)).toBe('2.00 GB');
   });
 
-  it('renders selected file card with active highlight and aria-selected="true"', () => {
-    const item = { path: '/src/main.js', name: 'main.js', type: 'file', size: 1200 };
-    const htmlUnselected = renderFileCard(item, false);
-    const htmlSelected = renderFileCard(item, true);
+  it('renders selected tree node with active highlight and aria-selected="true"', () => {
+    const item = { path: '/src/main.js', name: 'main.js', type: 'file', size: 1200, level: 1 };
+    const htmlUnselected = renderTreeNode(item, false);
+    const htmlSelected = renderTreeNode(item, true);
 
     expect(htmlUnselected).toContain('aria-selected="false"');
     expect(htmlSelected).toContain('aria-selected="true"');
-    expect(htmlSelected).toContain('ring-2 ring-blue-500');
+    expect(htmlSelected).toContain('bg-blue-100/80');
   });
 
-  it('renders file card icons correctly for audio and video files', () => {
-    const audioItem = { path: '/media/song.mp3', name: 'song.mp3', type: 'file', size: 5000000 };
-    const videoItem = { path: '/media/movie.mp4', name: 'movie.mp4', type: 'file', size: 50000000 };
+  it('renders tree node icons correctly for audio and video files', () => {
+    const audioItem = { path: '/media/song.mp3', name: 'song.mp3', type: 'file', size: 5000000, level: 1 };
+    const videoItem = { path: '/media/movie.mp4', name: 'movie.mp4', type: 'file', size: 50000000, level: 1 };
 
-    const audioHtml = renderFileCard(audioItem, false);
-    const videoHtml = renderFileCard(videoItem, false);
+    const audioHtml = renderTreeNode(audioItem, false);
+    const videoHtml = renderTreeNode(videoItem, false);
 
     expect(audioHtml).toContain('song.mp3');
     expect(videoHtml).toContain('movie.mp4');
@@ -60,18 +60,16 @@ describe('renderers & UI layout', () => {
   });
 
   it('renders main layout with list, resizer, and side preview panel', () => {
-    const crumbs = [{ name: 'Project', path: '/Project' }];
-    const items = [
-      { name: 'src', type: 'directory', path: '/Project/src' },
-      { name: 'README.md', type: 'file', path: '/Project/README.md', size: 450 },
+    const visibleNodes = [
+      { name: 'src', type: 'directory', path: '/Project/src', level: 1 },
+      { name: 'README.md', type: 'file', path: '/Project/README.md', size: 450, level: 1 },
     ];
-    const selectedItem = items[1];
+    const selectedItem = visibleNodes[1];
 
     const html = renderMainLayout(
       'Project',
       '/Project',
-      crumbs,
-      items,
+      visibleNodes,
       false,
       '',
       false,
@@ -92,19 +90,17 @@ describe('renderers & UI layout', () => {
   });
 
   it('allows hiding the preview panel and expanding file list', () => {
-    const crumbs = [{ name: 'Project', path: '/Project' }];
-    const items = [{ name: 'index.js', type: 'file', path: '/Project/index.js' }];
+    const visibleNodes = [{ name: 'index.js', type: 'file', path: '/Project/index.js', level: 1 }];
 
     const htmlHidden = renderMainLayout(
       'Project',
       '/Project',
-      crumbs,
-      items,
+      visibleNodes,
       false,
       '',
       false,
       null,
-      items[0],
+      visibleNodes[0],
       { status: 'idle' },
       null,
       false, // panel hidden
@@ -122,7 +118,6 @@ describe('renderers & UI layout', () => {
 
     expect(html).toContain('components');
     expect(html).toContain('Dossier de fichiers');
-    expect(html).toContain('Double-cliquez sur ce dossier dans la liste pour y naviguer');
   });
 
   it('displays error notice when preview loading fails', () => {
@@ -134,14 +129,12 @@ describe('renderers & UI layout', () => {
   });
 
   it('supports collapsing and expanding header bar to maximize screen space', () => {
-    const crumbs = [{ name: 'Project', path: '/Project' }];
-    const items = [{ name: 'index.js', type: 'file', path: '/Project/index.js' }];
+    const visibleNodes = [{ name: 'index.js', type: 'file', path: '/Project/index.js', level: 1 }];
 
     const htmlExpanded = renderMainLayout(
       'Project',
       '/Project',
-      crumbs,
-      items,
+      visibleNodes,
       false,
       '',
       false,
@@ -157,8 +150,7 @@ describe('renderers & UI layout', () => {
     const htmlCollapsed = renderMainLayout(
       'Project',
       '/Project',
-      crumbs,
-      items,
+      visibleNodes,
       false,
       '',
       false,
@@ -174,7 +166,6 @@ describe('renderers & UI layout', () => {
     expect(htmlExpanded).toContain('id="app-header"');
     expect(htmlExpanded).toContain('id="btn-toggle-header"');
     expect(htmlExpanded).toContain('Réduire');
-    expect(htmlExpanded).not.toContain('-mt-5');
 
     expect(htmlCollapsed).toContain('id="app-header"');
     expect(htmlCollapsed).toContain('id="btn-toggle-header"');

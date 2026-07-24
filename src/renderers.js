@@ -19,6 +19,7 @@ export function getColorForPath(path) {
 
 export function formatFileSize(bytes) {
   if (bytes === undefined || bytes === null) return '';
+  if (bytes === 0) return '0 B';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -121,50 +122,131 @@ export function renderFallbackUploadScreen() {
   `;
 }
 
-export function renderFileCard(item, isSelected = false) {
-  const color = getColorForPath(item.path);
-  const isDocument = item.type === 'file' && (/\.(pdf|docx?)$/i.test(item.name));
-  const isImage = item.type === 'file' && (item.file ? isImageFile(item.file) : /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif|tiff|apng)$/i.test(item.name));
-  const isAudio = item.type === 'file' && (item.file ? isAudioFile(item.file) : /\.(mp3|wav|ogg|m4a|aac|flac|wma|opus|mid|midi|amr|aiff|alac)$/i.test(item.name));
-  const isVideo = item.type === 'file' && (item.file ? isVideoFile(item.file) : /\.(mp4|webm|ogv|mov|mkv|avi|wmv|m4v|3gp|flv)$/i.test(item.name));
-  const icon = item.type === 'directory'
-    ? icons.folderOpen({ size: 20, className: color.text })
-    : isImage
-      ? icons.image({ size: 20, className: color.text })
-      : isAudio
-        ? icons.music({ size: 20, className: color.text })
-        : isVideo
-          ? icons.video({ size: 20, className: color.text })
-          : isDocument
-            ? icons.fileText({ size: 20, className: color.text })
-            : icons.file({ size: 20, className: color.text });
+export function renderTreeNode(node, isSelected = false) {
+  const level = node.level || 0;
+  const indentPx = Math.min(level * 18 + 8, 200);
+
+  const isDir = node.type === 'directory';
+  const isDocument = !isDir && (/\.(pdf|docx?)$/i.test(node.name));
+  const isImage = !isDir && (node.file ? isImageFile(node.file) : /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif|tiff|apng)$/i.test(node.name));
+  const isAudio = !isDir && (node.file ? isAudioFile(node.file) : /\.(mp3|wav|ogg|m4a|aac|flac|wma|opus|mid|midi|amr|aiff|alac)$/i.test(node.name));
+  const isVideo = !isDir && (node.file ? isVideoFile(node.file) : /\.(mp4|webm|ogv|mov|mkv|avi|wmv|m4v|3gp|flv)$/i.test(node.name));
+
+  let iconHtml = '';
+  if (isDir) {
+    iconHtml = node.isExpanded
+      ? icons.folderOpen({ size: 18, className: 'text-amber-500 flex-shrink-0' })
+      : icons.folder({ size: 18, className: 'text-amber-500 flex-shrink-0' });
+  } else if (isImage) {
+    iconHtml = icons.image({ size: 18, className: 'text-purple-500 flex-shrink-0' });
+  } else if (isAudio) {
+    iconHtml = icons.music({ size: 18, className: 'text-emerald-500 flex-shrink-0' });
+  } else if (isVideo) {
+    iconHtml = icons.video({ size: 18, className: 'text-rose-500 flex-shrink-0' });
+  } else if (isDocument) {
+    iconHtml = icons.fileText({ size: 18, className: 'text-blue-500 flex-shrink-0' });
+  } else {
+    iconHtml = icons.file({ size: 18, className: 'text-gray-400 flex-shrink-0' });
+  }
+
+  let toggleBtnHtml = '';
+  if (isDir) {
+    if (node.isLoading) {
+      toggleBtnHtml = `
+        <span class="w-5 h-5 flex items-center justify-center animate-spin text-blue-600 flex-shrink-0" aria-label="Chargement du dossier">
+          ${icons.loader({ size: 14 })}
+        </span>
+      `;
+    } else {
+      const iconCaret = node.isExpanded
+        ? icons.chevronDown({ size: 14, className: 'text-gray-500' })
+        : icons.chevronRight({ size: 14, className: 'text-gray-400 group-hover:text-gray-600' });
+      toggleBtnHtml = `
+        <button
+          type="button"
+          tabindex="-1"
+          aria-label="${node.isExpanded ? 'Replier le dossier' : 'Développer le dossier'}"
+          data-node-toggle="${escapeHtml(node.path)}"
+          class="btn-toggle-folder w-5 h-5 flex items-center justify-center rounded hover:bg-gray-200/80 transition-colors flex-shrink-0"
+        >
+          ${iconCaret}
+        </button>
+      `;
+    }
+  } else {
+    toggleBtnHtml = `<span class="w-5 h-5 flex-shrink-0"></span>`;
+  }
 
   const selectedClasses = isSelected
-    ? 'ring-2 ring-blue-500 bg-blue-50/70 border-blue-300 shadow-sm'
-    : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-md';
+    ? 'bg-blue-100/80 text-blue-900 font-semibold ring-1 ring-blue-400'
+    : 'text-gray-700 hover:bg-gray-100/80';
+
+  const expandedAttr = isDir ? `aria-expanded="${node.isExpanded ? 'true' : 'false'}"` : '';
+
+  let errorHtml = '';
+  if (isDir && node.error) {
+    errorHtml = `
+      <div class="my-1 ml-6 p-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-1.5 min-w-0">
+          ${icons.alertCircle({ size: 14, className: 'text-red-600 flex-shrink-0' })}
+          <span class="truncate">${escapeHtml(node.error)}</span>
+        </div>
+        <button
+          type="button"
+          data-node-retry="${escapeHtml(node.path)}"
+          class="btn-retry-folder px-2 py-0.5 bg-red-600 text-white rounded font-medium hover:bg-red-700 text-[11px] flex-shrink-0 transition-colors"
+        >
+          Réessayer
+        </button>
+      </div>
+    `;
+  }
 
   return `
-    <button
-      role="option"
+    <div
+      role="treeitem"
+      tabindex="${isSelected ? '0' : '-1'}"
+      data-node-path="${escapeHtml(node.path)}"
+      data-node-type="${escapeHtml(node.type)}"
       aria-selected="${isSelected ? 'true' : 'false'}"
-      data-item-path="${escapeHtml(item.path)}"
-      data-item-type="${escapeHtml(item.type)}"
-      class="btn-file-card group w-full text-left rounded-2xl border p-4 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 ${selectedClasses}"
+      aria-level="${level + 1}"
+      aria-label="${escapeHtml(node.name)}"
+      ${expandedAttr}
+      class="tree-node-item group flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-xl"
     >
-      <div class="flex items-center gap-3.5">
-        <div class="p-2.5 rounded-xl ${color.light} group-hover:scale-105 transition-transform flex-shrink-0">
-          ${icon}
-        </div>
-        <div class="flex-1 min-w-0">
-          <p class="font-semibold text-gray-900 text-sm truncate">${escapeHtml(item.name)}</p>
-          <p class="text-xs text-gray-500 mt-0.5">
-            ${item.type === 'directory' ? 'Dossier' : getFileExtension(item.name)}
-            ${item.size !== undefined ? ` • ${formatFileSize(item.size)}` : ''}
-          </p>
-        </div>
-        ${icons.chevronRight({ size: 16, className: 'text-gray-300 group-hover:text-gray-400 flex-shrink-0 transition-colors' })}
+      <div
+        class="flex items-center gap-1.5 py-1.5 px-2 rounded-xl cursor-pointer transition-colors duration-150 ${selectedClasses}"
+        style="padding-left: ${indentPx}px;"
+      >
+        ${toggleBtnHtml}
+        ${iconHtml}
+        <span class="truncate text-xs flex-1">${escapeHtml(node.name)}</span>
+        ${node.size !== undefined && !isDir ? `<span class="text-[10px] text-gray-400 group-hover:text-gray-500 font-normal flex-shrink-0">${formatFileSize(node.size)}</span>` : ''}
       </div>
-    </button>
+      ${errorHtml}
+    </div>
+  `;
+}
+
+export function renderTreeView(visibleNodes = [], selectedPath = null) {
+  if (visibleNodes.length === 0) {
+    return `
+      <div class="text-center py-12 text-gray-400 bg-white rounded-2xl border border-gray-200/80 p-4">
+        ${icons.folder({ size: 36, className: 'mx-auto mb-2 opacity-30' })}
+        <p class="font-medium text-xs">Aucun élément dans cette arborescence</p>
+      </div>
+    `;
+  }
+
+  return `
+    <div
+      id="tree-root"
+      role="tree"
+      aria-label="Arborescence du dossier"
+      class="space-y-0.5 pb-6"
+    >
+      ${visibleNodes.map((node) => renderTreeNode(node, node.path === selectedPath)).join('')}
+    </div>
   `;
 }
 
@@ -176,7 +258,7 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
           ${icons.file({ size: 36 })}
         </div>
         <p class="font-semibold text-gray-700 text-base">Aucun fichier sélectionné</p>
-        <p class="text-xs text-gray-400 mt-1.5 max-w-xs">Cliquez sur un fichier dans la liste pour afficher sa prévisualisation immédiate.</p>
+        <p class="text-xs text-gray-400 mt-1.5 max-w-xs">Sélectionnez un fichier dans l'arborescence pour afficher immédiatement sa prévisualisation.</p>
       </div>
     `;
   }
@@ -191,7 +273,7 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
           </div>
           <div class="min-w-0 flex-1">
             <h3 class="font-bold text-gray-900 text-lg truncate">${escapeHtml(selectedItem.name)}</h3>
-            <span class="inline-block text-xs font-semibold uppercase tracking-wider text-blue-600 px-2 py-0.5 rounded bg-blue-50">Dossier</span>
+            <span class="inline-block text-xs font-semibold uppercase tracking-wider text-amber-700 px-2 py-0.5 rounded bg-amber-50">Dossier</span>
           </div>
         </div>
 
@@ -208,7 +290,7 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
 
         <div class="mt-8 p-4 rounded-2xl bg-blue-50/70 border border-blue-100 text-xs text-blue-900 flex items-start gap-2.5">
           ${icons.folder({ size: 18, className: 'text-blue-600 flex-shrink-0 mt-0.5' })}
-          <span>Double-cliquez sur ce dossier dans la liste pour y naviguer.</span>
+          <span>Cliquez sur la flèche ou double-cliquez pour développer le contenu de ce dossier dans l'arborescence.</span>
         </div>
       </div>
     `;
@@ -317,7 +399,7 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
   } else if (preview.kind === 'text' || preview.kind === 'word') {
     const content = preview.content ?? '';
     const syntaxLang = preview.kind === 'text' ? getSyntaxLanguage(selectedItem.name) ?? 'markup' : 'markup';
-    const highlightedCode = highlightCode(content || '(fichier vide)', syntaxLang);
+    const highlightedCode = content ? highlightCode(content, syntaxLang) : '';
     const isTruncated = preview.kind === 'text' && Boolean(preview.truncated);
     const totalSize = preview.totalSize ?? selectedItem.size;
 
@@ -332,10 +414,16 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
         <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
           ${preview.kind === 'word' ? 'Aperçu Document Word' : 'Aperçu contenu'}
         </p>
-        <pre
-          class="text-xs rounded-2xl p-4 max-h-[50vh] overflow-auto bg-gray-900 text-gray-100 font-mono leading-relaxed shadow-inner"
-          aria-label="Source code preview for ${escapeHtml(selectedItem.name)}"
-        ><code>${highlightedCode}</code></pre>
+        ${content === '' ? `
+          <div class="p-4 bg-gray-50 rounded-2xl border border-gray-200 text-xs text-gray-500 italic">
+            Ce fichier est vide.
+          </div>
+        ` : `
+          <pre
+            class="text-xs rounded-2xl p-4 max-h-[50vh] overflow-auto bg-gray-900 text-gray-100 font-mono leading-relaxed shadow-inner"
+            aria-label="Source code preview for ${escapeHtml(selectedItem.name)}"
+          ><code>${highlightedCode}</code></pre>
+        `}
       </div>
     `;
   } else if (preview.kind === 'unsupported-word' || previewState.status === 'unsupported-word') {
@@ -425,11 +513,10 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
 export function renderMainLayout(
   displayName,
   currentPath,
-  crumbs,
-  items,
-  loading,
-  search,
-  usingFallback,
+  visibleNodes = [],
+  loading = false,
+  search = '',
+  usingFallback = false,
   error = null,
   selectedItem = null,
   previewState = { status: 'idle' },
@@ -441,72 +528,28 @@ export function renderMainLayout(
   const color = getColorForPath(currentPath || '/files');
   const selectedPath = selectedItem ? selectedItem.path : null;
 
-  const crumbsHtml = crumbs.length > 1 ? `
-    <div class="flex items-center flex-wrap gap-1 mt-3 text-white/80 text-xs">
-      ${crumbs.map((crumb, i) => `
-        <span class="flex items-center gap-1">
-          ${i > 0 ? icons.chevronRight({ size: 12, className: 'text-white/50' }) : ''}
-          <button
-            data-crumb-index="${i}"
-            class="btn-crumb hover:text-white transition-colors ${i === crumbs.length - 1 ? 'text-white font-semibold' : ''}"
-          >
-            ${escapeHtml(crumb.name)}
-          </button>
-        </span>
-      `).join('')}
-    </div>
-  ` : '';
-
   let contentHtml = '';
 
   if (loading) {
     contentHtml = `
-      <div class="space-y-3">
-        ${[1, 2, 3, 4].map(() => `
-          <div class="bg-white rounded-2xl border border-gray-100 p-4 animate-pulse">
-            <div class="flex gap-4">
-              <div class="w-10 h-10 rounded-xl bg-gray-200"></div>
-              <div class="flex-1 space-y-2 pt-1">
-                <div class="h-4 bg-gray-200 rounded w-2/3"></div>
-                <div class="h-3 bg-gray-100 rounded w-1/2"></div>
-              </div>
-            </div>
+      <div class="space-y-2 py-2">
+        ${[1, 2, 3, 4, 5].map(() => `
+          <div class="bg-white rounded-xl border border-gray-100 p-3 animate-pulse flex items-center gap-3">
+            <div class="w-5 h-5 rounded bg-gray-200"></div>
+            <div class="w-5 h-5 rounded bg-gray-200"></div>
+            <div class="h-4 bg-gray-200 rounded flex-1"></div>
           </div>
         `).join('')}
       </div>
     `;
-  } else if (items.length === 0) {
-    contentHtml = `
-      <div class="text-center py-16 text-gray-400 bg-white rounded-3xl border border-gray-200/80">
-        ${icons.folder({ size: 40, className: 'mx-auto mb-3 opacity-30' })}
-        <p class="font-medium text-sm">Aucun fichier ou dossier trouvé</p>
-        ${search ? '<p class="text-xs mt-1 text-gray-400">Essayez une recherche différente.</p>' : ''}
-      </div>
-    `;
   } else {
-    contentHtml = `
-      <div class="space-y-2 pb-6" role="listbox" aria-label="Fichiers et dossiers">
-        <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest px-1 mb-2">
-          ${items.length} ${items.length === 1 ? 'élément' : 'éléments'}
-        </p>
-        ${items.map(item => renderFileCard(item, item.path === selectedPath)).join('')}
-      </div>
-    `;
+    contentHtml = renderTreeView(visibleNodes, selectedPath);
   }
 
   const headerContentHtml = isHeaderCollapsed
     ? `
       <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
         <div class="flex items-center gap-3 min-w-0">
-          ${crumbs.length > 1 ? `
-            <button
-              id="btn-go-back"
-              class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors flex-shrink-0"
-            >
-              ${icons.arrowLeft({ size: 14 })}
-              <span class="hidden sm:inline">Retour</span>
-            </button>
-          ` : ''}
           <div class="p-1.5 bg-white/20 rounded-lg text-white flex-shrink-0">
             ${icons.folder({ size: 18 })}
           </div>
@@ -517,6 +560,16 @@ export function renderMainLayout(
         </div>
 
         <div class="flex items-center gap-2 flex-shrink-0">
+          <button
+            id="btn-refresh-root"
+            class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+            aria-label="Actualiser l'arborescence"
+            title="Actualiser l'arborescence"
+          >
+            ${icons.refreshCw({ size: 14 })}
+            <span class="hidden sm:inline">Actualiser</span>
+          </button>
+
           <button
             id="btn-toggle-header"
             class="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
@@ -552,15 +605,6 @@ export function renderMainLayout(
     : `
       <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
         <div class="flex items-center gap-3">
-          ${crumbs.length > 1 ? `
-            <button
-              id="btn-go-back"
-              class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors"
-            >
-              ${icons.arrowLeft({ size: 14 })}
-              Retour
-            </button>
-          ` : ''}
           <div class="p-2.5 bg-white/20 rounded-2xl text-white">
             ${icons.folder({ size: 24 })}
           </div>
@@ -571,6 +615,16 @@ export function renderMainLayout(
         </div>
 
         <div class="flex items-center gap-2">
+          <button
+            id="btn-refresh-root"
+            class="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+            aria-label="Actualiser l'arborescence"
+            title="Actualiser l'arborescence"
+          >
+            ${icons.refreshCw({ size: 16 })}
+            <span class="hidden sm:inline">Actualiser</span>
+          </button>
+
           <button
             id="btn-toggle-header"
             class="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
@@ -602,10 +656,6 @@ export function renderMainLayout(
           ` : ''}
         </div>
       </div>
-
-      <div class="max-w-7xl mx-auto">
-        ${crumbsHtml}
-      </div>
     `;
 
   return `
@@ -617,31 +667,31 @@ export function renderMainLayout(
 
       <!-- Main Layout Content -->
       <div class="flex-1 max-w-7xl w-full mx-auto px-4 pt-3 pb-4 flex flex-col md:flex-row gap-0 overflow-hidden">
-        <!-- Zone 1: File Navigation & List -->
-        <div id="file-list-container" class="flex-1 flex flex-col min-w-[260px] h-full overflow-hidden pr-0 md:pr-1">
+        <!-- Zone 1: Unique TreeView Navigation -->
+        <div id="file-list-container" class="flex-1 flex flex-col min-w-[240px] max-w-[600px] h-full overflow-hidden pr-0 md:pr-1">
           <!-- Search input -->
-          <div class="relative mb-3 flex-shrink-0">
-            <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-              ${icons.search({ size: 18 })}
+          <div class="relative mb-2 flex-shrink-0">
+            <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
+              ${icons.search({ size: 16 })}
             </div>
             <input
               type="text"
               id="input-search"
-              placeholder="Rechercher un fichier..."
+              placeholder="Rechercher dans les éléments chargés..."
               value="${escapeHtml(search)}"
-              class="w-full pl-11 pr-10 py-3 bg-white rounded-2xl border border-gray-200/80 shadow-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              class="w-full pl-10 pr-9 py-2.5 bg-white rounded-2xl border border-gray-200 shadow-sm text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             />
             ${search ? `
-              <button id="btn-clear-search" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                ${icons.x({ size: 16 })}
+              <button id="btn-clear-search" aria-label="Effacer la recherche" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                ${icons.x({ size: 14 })}
               </button>
             ` : ''}
           </div>
 
           ${error ? `
-            <div class="mb-3 p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start justify-between gap-3 shadow-sm flex-shrink-0">
-              <div class="flex items-start gap-2.5">
-                ${icons.alertCircle({ size: 18, className: 'text-amber-600 flex-shrink-0 mt-0.5' })}
+            <div class="mb-2 p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-start justify-between gap-2 shadow-sm flex-shrink-0">
+              <div class="flex items-start gap-2">
+                ${icons.alertCircle({ size: 16, className: 'text-amber-600 flex-shrink-0 mt-0.5' })}
                 <p class="text-xs text-amber-900 font-medium">${escapeHtml(error)}</p>
               </div>
               <button id="btn-dismiss-error" aria-label="Fermer l'alerte" class="text-amber-700 hover:text-amber-900 text-xs font-semibold underline flex-shrink-0">
@@ -650,8 +700,8 @@ export function renderMainLayout(
             </div>
           ` : ''}
 
-          <!-- File List -->
-          <div id="file-list" class="flex-1 overflow-y-auto pr-1">
+          <!-- Tree View Scroll Container -->
+          <div id="file-list" class="flex-1 overflow-y-auto pr-1 bg-white rounded-2xl border border-gray-200/80 p-2 shadow-sm">
             ${contentHtml}
           </div>
         </div>
@@ -675,8 +725,8 @@ export function renderMainLayout(
         <!-- Zone 3: Integrated Preview Side Panel -->
         <div
           id="preview-panel-container"
-          class="${isPanelVisible ? 'flex' : 'hidden'} flex-col min-w-[260px] ${isPanelVisible ? 'w-full md:w-auto' : ''} mt-4 md:mt-0 flex-shrink-0 h-full overflow-hidden"
-          style="${isPanelVisible ? `width: ${panelWidth}px;` : ''}"
+          class="${isPanelVisible ? 'flex' : 'hidden'} flex-col min-w-[300px] ${isPanelVisible ? 'w-full md:w-auto' : ''} mt-4 md:mt-0 flex-1 h-full overflow-hidden"
+          style="${isPanelVisible ? `width: ${panelWidth}px; flex: 1 1 ${panelWidth}px;` : ''}"
         >
           ${renderPreviewPanel(selectedItem, previewState, objectUrl)}
         </div>

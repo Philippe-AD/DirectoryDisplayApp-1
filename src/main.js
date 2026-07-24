@@ -18,9 +18,10 @@ import {
 
 const state = {
   rootHandle: null,
-  crumbs: [],
-  items: [],
-  filtered: [],
+  rootPath: '',
+  rootName: '',
+  nodes: new Map(), // Map<path, TreeNode>
+  treeRootPath: null,
   search: '',
   loading: false,
   error: null,
@@ -29,15 +30,13 @@ const state = {
   isPreviewPanelVisible: true,
   panelWidth: 380,
   isHeaderCollapsed: false,
-  fallbackItems: [],
   usingFallback: false,
   objectUrl: null,
 };
 
-let handleMap = new Map();
-let loadRequestId = 0;
 let previewRequestId = 0;
 let isKeyboardListenerAttached = false;
+const handleMap = new Map(); // Map<path, handle>
 
 function getAppElement() {
   let el = document.getElementById('app');
@@ -59,6 +58,53 @@ function updateObjectUrl(file) {
   }
 }
 
+export function sortNodePaths(childrenPaths, nodeMap) {
+  return [...childrenPaths].sort((pathA, pathB) => {
+    const a = nodeMap.get(pathA);
+    const b = nodeMap.get(pathB);
+    if (!a || !b) return 0;
+    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+  });
+}
+
+export function getVisibleTreeNodes(treeRootPath, nodeMap, search = '') {
+  if (!treeRootPath || !nodeMap.has(treeRootPath)) return [];
+
+  if (search && search.trim()) {
+    const query = search.trim().toLowerCase();
+    const matches = [];
+    nodeMap.forEach((node) => {
+      if (node.name.toLowerCase().includes(query)) {
+        matches.push(node);
+      }
+    });
+
+    matches.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+    });
+
+    return matches;
+  }
+
+  const visible = [];
+
+  function traverse(path) {
+    const node = nodeMap.get(path);
+    if (!node) return;
+    visible.push(node);
+
+    if (node.type === 'directory' && node.isExpanded && Array.isArray(node.childrenPaths)) {
+      const sorted = sortNodePaths(node.childrenPaths, nodeMap);
+      sorted.forEach((childPath) => traverse(childPath));
+    }
+  }
+
+  traverse(treeRootPath);
+  return visible;
+}
+
 function render() {
   const root = getAppElement();
 
@@ -68,24 +114,25 @@ function render() {
     return;
   }
 
-  if (state.usingFallback && state.fallbackItems.length === 0) {
+  if (state.usingFallback && state.nodes.size === 0) {
     root.innerHTML = renderFallbackUploadScreen();
     bindFallbackUploadEvents();
     return;
   }
 
-  const currentCrumb = state.crumbs.length > 0 ? state.crumbs[state.crumbs.length - 1] : null;
-  const displayName = currentCrumb ? currentCrumb.name : 'Files';
-  const currentPath = currentCrumb ? currentCrumb.path : '';
+  const rootNode = state.treeRootPath ? state.nodes.get(state.treeRootPath) : null;
+  const displayName = rootNode ? rootNode.name : 'Files';
+  const currentPath = rootNode ? rootNode.path : '';
 
   const fileListEl = document.getElementById('file-list');
   const previousScrollTop = fileListEl ? fileListEl.scrollTop : 0;
 
+  const visibleNodes = getVisibleTreeNodes(state.treeRootPath, state.nodes, state.search);
+
   const html = renderMainLayout(
     displayName,
     currentPath,
-    state.crumbs,
-    state.filtered,
+    visibleNodes,
     state.loading,
     state.search,
     state.usingFallback,
@@ -159,11 +206,15 @@ function bindFallbackUploadEvents() {
 }
 
 function bindMainEvents() {
-  document.getElementById('btn-go-back')?.addEventListener('click', goBack);
-
   document.getElementById('btn-dismiss-error')?.addEventListener('click', () => {
     state.error = null;
     render();
+  });
+
+  document.getElementById('btn-refresh-root')?.addEventListener('click', () => {
+    if (state.treeRootPath) {
+      refreshFolder(state.treeRootPath);
+    }
   });
 
   document.getElementById('btn-toggle-header')?.addEventListener('click', () => {
@@ -176,54 +227,68 @@ function bindMainEvents() {
     render();
   });
 
-  document.querySelectorAll('.btn-crumb').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const index = parseInt(btn.dataset.crumbIndex || '0', 10);
-      navigateToCrumb(index);
-    });
-  });
-
   const searchInput = document.getElementById('input-search');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
-      onSearch(e.target.value);
+      state.search = e.target.value;
+      render();
     });
   }
 
   document.getElementById('btn-clear-search')?.addEventListener('click', () => {
-    onSearch('');
+    state.search = '';
+    render();
   });
 
-  document.querySelectorAll('.btn-file-card').forEach((card) => {
-    card.addEventListener('click', (e) => {
+  document.querySelectorAll('.btn-toggle-folder').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const path = card.dataset.itemPath;
+      const path = btn.dataset.nodeToggle;
+      if (path) {
+        toggleFolder(path);
+      }
+    });
+  });
+
+  document.querySelectorAll('.btn-retry-folder').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const path = btn.dataset.nodeRetry;
+      if (path) {
+        loadFolderContents(path, true);
+      }
+    });
+  });
+
+  document.querySelectorAll('.tree-node-item').forEach((itemEl) => {
+    itemEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const path = itemEl.dataset.nodePath;
       if (!path) return;
-      const item = state.filtered.find((i) => i.path === path);
-      if (item) {
-        handleItemSingleClick(item);
+      const node = state.nodes.get(path);
+      if (node) {
+        handleNodeSingleClick(node);
       }
     });
 
-    card.addEventListener('dblclick', (e) => {
+    itemEl.addEventListener('dblclick', (e) => {
       e.stopPropagation();
-      const path = card.dataset.itemPath;
+      const path = itemEl.dataset.nodePath;
       if (!path) return;
-      const item = state.filtered.find((i) => i.path === path);
-      if (item) {
-        handleItemDoubleClick(item);
+      const node = state.nodes.get(path);
+      if (node) {
+        handleNodeDoubleClick(node);
       }
     });
   });
 
   document.getElementById('btn-open-another')?.addEventListener('click', () => {
-    loadRequestId += 1;
     state.loading = false;
     state.rootHandle = null;
-    state.crumbs = [];
-    state.items = [];
-    state.filtered = [];
-    state.fallbackItems = [];
+    state.rootPath = '';
+    state.rootName = '';
+    state.nodes.clear();
+    state.treeRootPath = null;
     state.usingFallback = false;
     state.selectedItem = null;
     state.previewState = { status: 'idle', preview: null };
@@ -245,8 +310,8 @@ function setupResizer() {
 
   const onMouseMove = (e) => {
     const delta = startX - e.clientX;
-    const minWidth = 250;
-    const maxWidth = Math.max(minWidth, window.innerWidth - 300);
+    const minWidth = 300;
+    const maxWidth = Math.max(minWidth, window.innerWidth - 280);
     const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + delta));
     state.panelWidth = newWidth;
     previewPanelContainer.style.width = `${newWidth}px`;
@@ -276,54 +341,97 @@ function attachGlobalKeyboardListener() {
       return;
     }
 
-    if (state.filtered.length === 0) return;
+    const visibleNodes = getVisibleTreeNodes(state.treeRootPath, state.nodes, state.search);
+    if (visibleNodes.length === 0) return;
+
+    const currentIndex = state.selectedItem
+      ? visibleNodes.findIndex((n) => n.path === state.selectedItem.path)
+      : -1;
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      const currentIndex = state.selectedItem
-        ? state.filtered.findIndex((i) => i.path === state.selectedItem.path)
-        : -1;
-      const nextIndex = currentIndex < 0 ? 0 : Math.min(state.filtered.length - 1, currentIndex + 1);
-      const nextItem = state.filtered[nextIndex];
-      if (nextItem) {
-        handleItemSingleClick(nextItem);
-        scrollToSelectedItem();
+      const nextIndex = currentIndex < 0 ? 0 : Math.min(visibleNodes.length - 1, currentIndex + 1);
+      const nextNode = visibleNodes[nextIndex];
+      if (nextNode) {
+        handleNodeSingleClick(nextNode);
+        scrollToSelectedNode();
       }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      const currentIndex = state.selectedItem
-        ? state.filtered.findIndex((i) => i.path === state.selectedItem.path)
-        : -1;
       const prevIndex = currentIndex < 0 ? 0 : Math.max(0, currentIndex - 1);
-      const prevItem = state.filtered[prevIndex];
-      if (prevItem) {
-        handleItemSingleClick(prevItem);
-        scrollToSelectedItem();
+      const prevNode = visibleNodes[prevIndex];
+      if (prevNode) {
+        handleNodeSingleClick(prevNode);
+        scrollToSelectedNode();
       }
-    } else if (e.key === 'Enter') {
+    } else if (e.key === 'ArrowRight') {
+      if (state.selectedItem && state.selectedItem.type === 'directory') {
+        e.preventDefault();
+        if (!state.selectedItem.isExpanded) {
+          toggleFolder(state.selectedItem.path);
+        } else if (state.selectedItem.childrenPaths.length > 0) {
+          const sortedChildren = sortNodePaths(state.selectedItem.childrenPaths, state.nodes);
+          const firstChild = state.nodes.get(sortedChildren[0]);
+          if (firstChild) {
+            handleNodeSingleClick(firstChild);
+            scrollToSelectedNode();
+          }
+        }
+      }
+    } else if (e.key === 'ArrowLeft') {
       if (state.selectedItem) {
         e.preventDefault();
-        handleItemDoubleClick(state.selectedItem);
+        if (state.selectedItem.type === 'directory' && state.selectedItem.isExpanded) {
+          state.selectedItem.isExpanded = false;
+          render();
+        } else if (state.selectedItem.parentPath) {
+          const parentNode = state.nodes.get(state.selectedItem.parentPath);
+          if (parentNode) {
+            handleNodeSingleClick(parentNode);
+            scrollToSelectedNode();
+          }
+        }
+      }
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      if (state.selectedItem) {
+        e.preventDefault();
+        if (state.selectedItem.type === 'directory') {
+          toggleFolder(state.selectedItem.path);
+        } else {
+          handleNodeSingleClick(state.selectedItem);
+        }
       }
     }
   });
 }
 
-function scrollToSelectedItem() {
+function scrollToSelectedNode() {
   const selectedEl = document.querySelector('[aria-selected="true"]');
   selectedEl?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
-async function handleItemSingleClick(item) {
-  state.selectedItem = item;
+function handleNodeSingleClick(node) {
+  state.selectedItem = node;
 
-  if (item.type === 'directory') {
+  if (node.type === 'directory') {
     state.previewState = { status: 'folder', preview: null };
     updateObjectUrl(null);
     render();
     return;
   }
 
+  triggerFilePreview(node);
+}
+
+function handleNodeDoubleClick(node) {
+  if (node.type === 'directory') {
+    toggleFolder(node.path);
+  } else {
+    handleNodeSingleClick(node);
+  }
+}
+
+async function triggerFilePreview(node) {
   const currentReqId = ++previewRequestId;
   state.previewState = { status: 'loading', preview: null };
   render();
@@ -332,15 +440,17 @@ async function handleItemSingleClick(item) {
     let file = null;
 
     if (state.usingFallback) {
-      file = item.file || null;
+      file = node.file || null;
     } else if (isElectron()) {
-      const isText = isTextFile({ name: item.name, type: '' });
+      const isText = isTextFile({ name: node.name, type: '' });
       const options = isText ? { maxBytes: MAX_TEXT_PREVIEW_BYTES } : undefined;
-      file = await getElectronFile(item.path, item.name, options);
+      file = await getElectronFile(node.path, node.name, options);
     } else {
-      const handle = handleMap.get(item.path);
+      const handle = handleMap.get(node.path);
       if (handle && handle.kind === 'file') {
         file = await handle.getFile();
+      } else if (node.file) {
+        file = node.file;
       }
     }
 
@@ -367,88 +477,104 @@ async function handleItemSingleClick(item) {
   render();
 }
 
-async function handleItemDoubleClick(item) {
-  if (item.type === 'directory') {
-    state.selectedItem = null;
-    state.previewState = { status: 'idle', preview: null };
-    updateObjectUrl(null);
+export async function toggleFolder(path) {
+  const node = state.nodes.get(path);
+  if (!node || node.type !== 'directory') return;
 
-    if (state.usingFallback) {
-      const subItems = fallbackVirtualFs.get(item.path) || [];
-      state.crumbs.push({ name: item.name, path: item.path, handle: null });
-      state.items = subItems;
-      state.filtered = subItems;
-      state.search = '';
-      render();
-    } else if (isElectron()) {
-      const dirHandle = {
-        kind: 'electron-directory',
-        name: item.name,
-        path: item.path,
-      };
-      const previousCrumbs = [...state.crumbs];
-      state.crumbs.push({ name: item.name, path: item.path, handle: dirHandle });
-      state.search = '';
-      try {
-        await loadDirectory(dirHandle, item.path);
-      } catch (err) {
-        state.crumbs = previousCrumbs;
-        state.error = err instanceof Error ? err.message : `Impossible d'accéder au dossier "${item.name}".`;
-        render();
-      }
-    } else {
-      const handle = handleMap.get(item.path);
-      if (handle && handle.kind === 'directory') {
-        const dirHandle = handle;
-        const previousCrumbs = [...state.crumbs];
-        state.crumbs.push({ name: item.name, path: item.path, handle: dirHandle });
-        state.search = '';
-        try {
-          await loadDirectory(dirHandle, item.path);
-        } catch {
-          state.crumbs = previousCrumbs;
-          state.error = `Impossible d'accéder au dossier système "${item.name}". Accès restreint par le navigateur.`;
-          render();
-        }
-      }
-    }
+  if (node.isExpanded) {
+    node.isExpanded = false;
+    render();
+    return;
+  }
+
+  node.isExpanded = true;
+  if (!node.isLoaded) {
+    await loadFolderContents(path);
   } else {
-    handleItemSingleClick(item);
+    render();
   }
 }
 
-async function loadDirectory(dir, path) {
-  const requestId = ++loadRequestId;
-  state.loading = true;
-  state.error = null;
-  state.selectedItem = null;
-  state.previewState = { status: 'idle', preview: null };
-  updateObjectUrl(null);
+export async function refreshFolder(path) {
+  const node = state.nodes.get(path);
+  if (!node || node.type !== 'directory') return;
+  await loadFolderContents(path, true);
+}
+
+export async function loadFolderContents(path, forceReload = false) {
+  const node = state.nodes.get(path);
+  if (!node || node.type !== 'directory') return;
+
+  if (node.isLoaded && !forceReload) return;
+
+  node.isLoading = true;
+  node.error = null;
   render();
 
   try {
-    const { files, handles } = await listDirectory(dir, path);
-    if (requestId !== loadRequestId) return;
+    let dirDir = null;
 
-    handleMap = new Map(
-      handles.map((h) => {
-        const childPath = path ? `${path}/${h.name}` : `/${h.name}`;
-        return [childPath, h];
-      })
-    );
-
-    state.items = files;
-    state.filtered = files;
-  } catch (err) {
-    if (requestId !== loadRequestId) return;
-    state.error = err instanceof Error ? err.message : 'Failed to read this folder.';
-    state.items = [];
-    state.filtered = [];
-  } finally {
-    if (requestId === loadRequestId) {
-      state.loading = false;
+    if (state.usingFallback) {
+      // In fallback mode, nodes are already created
+      node.isLoading = false;
+      node.isLoaded = true;
       render();
+      return;
     }
+
+    if (isElectron()) {
+      dirDir = { kind: 'electron-directory', name: node.name, path: node.path };
+    } else {
+      dirDir = handleMap.get(path) || state.rootHandle;
+    }
+
+    const { files, handles } = await listDirectory(dirDir, node.path);
+
+    const childPaths = [];
+    files.forEach((fileItem) => {
+      const childPath = fileItem.path;
+      childPaths.push(childPath);
+
+      const existingChild = state.nodes.get(childPath);
+
+      state.nodes.set(childPath, {
+        path: childPath,
+        name: fileItem.name,
+        type: fileItem.type,
+        size: fileItem.size,
+        file: fileItem.file || null,
+        parentPath: path,
+        level: node.level + 1,
+        isExpanded: existingChild ? existingChild.isExpanded : false,
+        isLoaded: existingChild ? existingChild.isLoaded : false,
+        isLoading: false,
+        error: null,
+        childrenPaths: existingChild ? existingChild.childrenPaths : [],
+      });
+
+      const handle = handles.find((h) => h.name === fileItem.name);
+      if (handle) {
+        handleMap.set(childPath, handle);
+      }
+    });
+
+    // Remove children no longer present on disk
+    if (forceReload && Array.isArray(node.childrenPaths)) {
+      const newChildSet = new Set(childPaths);
+      node.childrenPaths.forEach((oldPath) => {
+        if (!newChildSet.has(oldPath)) {
+          state.nodes.delete(oldPath);
+        }
+      });
+    }
+
+    node.childrenPaths = childPaths;
+    node.isLoaded = true;
+  } catch (err) {
+    node.error = err instanceof Error ? err.message : `Impossible de lire le dossier "${node.name}".`;
+  } finally {
+    node.isLoading = false;
+    render();
   }
 }
 
@@ -457,14 +583,36 @@ async function handleOpenFolder() {
   try {
     const handle = await openDirectory();
     const path = handle.kind === 'electron-directory' ? handle.path : `/${handle.name}`;
+
     state.rootHandle = handle;
-    state.crumbs = [{ name: handle.name, path, handle }];
-    await loadDirectory(handle, path);
+    state.rootPath = path;
+    state.rootName = handle.name;
+    state.nodes.clear();
+    handleMap.clear();
+
+    const rootNode = {
+      path,
+      name: handle.name,
+      type: 'directory',
+      parentPath: null,
+      level: 0,
+      isExpanded: true,
+      isLoaded: false,
+      isLoading: true,
+      error: null,
+      childrenPaths: [],
+      handle,
+    };
+
+    state.nodes.set(path, rootNode);
+    state.treeRootPath = path;
+
+    await loadFolderContents(path);
   } catch (err) {
     if (err instanceof Error && err.message === 'NOT_SUPPORTED') {
       state.error = 'Your browser does not support the folder picker.';
     } else if (err instanceof DOMException && err.name === 'AbortError') {
-      // User cancelled
+      // Cancelled
     } else {
       const isSecurityOrSystem = err instanceof DOMException &&
         (err.name === 'SecurityError' || err.name === 'NotAllowedError');
@@ -476,14 +624,13 @@ async function handleOpenFolder() {
   }
 }
 
-const fallbackVirtualFs = new Map();
-const fallbackAllFiles = [];
+function handleFallbackFiles(fileList) {
+  state.nodes.clear();
+  handleMap.clear();
 
-function setupFallbackVirtualFs(fileList) {
-  fallbackVirtualFs.clear();
-  fallbackAllFiles.length = 0;
-
+  let rootFolderName = '';
   const folderMap = new Map();
+
   const getOrCreateFolderMap = (dirPath) => {
     let map = folderMap.get(dirPath);
     if (!map) {
@@ -493,44 +640,67 @@ function setupFallbackVirtualFs(fileList) {
     return map;
   };
 
-  let rootFolderName = '';
-
   Array.from(fileList).forEach((f) => {
     const rawRel = f.webkitRelativePath || f.name;
     const rel = rawRel.startsWith('/') ? rawRel : `/${rawRel}`;
     const parts = rel.split('/').filter(Boolean);
 
-    const fileItem = {
-      name: f.name,
-      type: 'file',
-      size: f.size,
-      path: rel,
-      file: f,
-    };
-    fallbackAllFiles.push(fileItem);
-
     if (parts.length > 0 && !rootFolderName) {
       rootFolderName = parts[0];
     }
 
+    const rootPath = `/${rootFolderName || 'Files'}`;
+
     if (parts.length <= 1) {
-      const rootPath = `/${rootFolderName || 'Files'}`;
-      getOrCreateFolderMap(rootPath).set(f.name, fileItem);
+      getOrCreateFolderMap(rootPath).set(f.name, {
+        path: rel,
+        name: f.name,
+        type: 'file',
+        size: f.size,
+        file: f,
+        parentPath: rootPath,
+        level: 1,
+        isExpanded: false,
+        isLoaded: true,
+        isLoading: false,
+        error: null,
+        childrenPaths: [],
+      });
     } else {
       let currentDirPath = `/${parts[0]}`;
       for (let i = 1; i < parts.length; i++) {
         const isLast = i === parts.length - 1;
         const partName = parts[i];
         if (isLast) {
-          getOrCreateFolderMap(currentDirPath).set(partName, fileItem);
+          getOrCreateFolderMap(currentDirPath).set(partName, {
+            path: rel,
+            name: partName,
+            type: 'file',
+            size: f.size,
+            file: f,
+            parentPath: currentDirPath,
+            level: i,
+            isExpanded: false,
+            isLoaded: true,
+            isLoading: false,
+            error: null,
+            childrenPaths: [],
+          });
         } else {
           const subDirPath = `${currentDirPath}/${partName}`;
           const currentMap = getOrCreateFolderMap(currentDirPath);
           if (!currentMap.has(partName)) {
             currentMap.set(partName, {
+              path: subDirPath,
               name: partName,
               type: 'directory',
-              path: subDirPath,
+              parentPath: currentDirPath,
+              level: i,
+              isExpanded: false,
+              isLoaded: true,
+              isLoading: false,
+              error: null,
+              childrenPaths: [],
             });
           }
           currentDirPath = subDirPath;
@@ -539,88 +709,52 @@ function setupFallbackVirtualFs(fileList) {
     }
   });
 
+  const rootPath = `/${rootFolderName || 'Files'}`;
+  const rootNode = {
+    path: rootPath,
+    name: rootFolderName || 'Files',
+    type: 'directory',
+    parentPath: null,
+    level: 0,
+    isExpanded: true,
+    isLoaded: true,
+    isLoading: false,
+    error: null,
+    childrenPaths: [],
+  };
+
+  state.nodes.set(rootPath, rootNode);
+  state.treeRootPath = rootPath;
+
   folderMap.forEach((childrenMap, dirPath) => {
-    const list = Array.from(childrenMap.values());
-    list.sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
-      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+    const parentNode = state.nodes.get(dirPath);
+    const childPaths = [];
+    childrenMap.forEach((childNode) => {
+      state.nodes.set(childNode.path, childNode);
+      childPaths.push(childNode.path);
     });
-    fallbackVirtualFs.set(dirPath, list);
+
+    if (parentNode) {
+      parentNode.childrenPaths = childPaths;
+    }
   });
 
-  const rootPath = `/${rootFolderName || 'Files'}`;
-  return { rootFolderName: rootFolderName || 'Files', rootPath };
-}
-
-function handleFallbackFiles(fileList) {
-  const { rootFolderName, rootPath } = setupFallbackVirtualFs(fileList);
   state.usingFallback = true;
   state.rootHandle = null;
-  state.crumbs = [{ name: rootFolderName, path: rootPath, handle: null }];
   state.search = '';
   state.error = null;
   state.selectedItem = null;
   state.previewState = { status: 'idle', preview: null };
   updateObjectUrl(null);
-
-  const currentItems = fallbackVirtualFs.get(rootPath) || fallbackAllFiles;
-  state.fallbackItems = currentItems;
-  state.items = currentItems;
-  state.filtered = currentItems;
-  render();
-}
-
-async function navigateToCrumb(index) {
-  const crumb = state.crumbs[index];
-  state.crumbs = state.crumbs.slice(0, index + 1);
-  state.search = '';
-  state.selectedItem = null;
-  state.previewState = { status: 'idle', preview: null };
-  updateObjectUrl(null);
-  if (state.usingFallback) {
-    const subItems = fallbackVirtualFs.get(crumb.path) || fallbackAllFiles;
-    state.items = subItems;
-    state.filtered = subItems;
-    render();
-  } else {
-    await loadDirectory(crumb.handle, crumb.path);
-  }
-}
-
-async function goBack() {
-  if (state.crumbs.length > 1) {
-    await navigateToCrumb(state.crumbs.length - 2);
-  } else {
-    loadRequestId += 1;
-    state.loading = false;
-    state.rootHandle = null;
-    state.crumbs = [];
-    state.items = [];
-    state.filtered = [];
-    state.fallbackItems = [];
-    state.usingFallback = false;
-    state.selectedItem = null;
-    state.previewState = { status: 'idle', preview: null };
-    updateObjectUrl(null);
-    render();
-  }
-}
-
-function onSearch(value) {
-  state.search = value;
-  const currentCrumb = state.crumbs.length > 0 ? state.crumbs[state.crumbs.length - 1] : null;
-  const source = state.usingFallback
-    ? (value ? fallbackAllFiles : (fallbackVirtualFs.get(currentCrumb?.path || '') || state.items))
-    : state.items;
-  const q = value.toLowerCase();
-  state.filtered = source.filter((item) => item.name.toLowerCase().includes(q));
   render();
 }
 
 // Initial render
-document.addEventListener('DOMContentLoaded', () => {
-  render();
-});
-if (document.readyState === 'interactive' || document.readyState === 'complete') {
-  render();
+if (typeof document !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', () => {
+    render();
+  });
+  if (document.readyState === 'interactive' || document.readyState === 'complete') {
+    render();
+  }
 }

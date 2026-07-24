@@ -71,4 +71,7 @@ export const icons = {
 
   video: (opts) =>
     iconSvg('<path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/>', opts),
+
+  refreshCw: (opts) =>
+    iconSvg('<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/>', opts),
 };
