@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom Windows 11 style subtle scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(107, 114, 128, 0.7);
+}
+
 /* Styles pour la prévisualisation de documents Word (docx-preview) */
 .docx-wrapper {
   background: transparent !important;
@@ -9,11 +28,12 @@
 }
 
 .docx-wrapper > section.docx {
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1) !important;
   margin: 0 auto 16px auto !important;
   background-color: white !important;
-  border-radius: 8px !important;
+  border-radius: 6px !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
 }
+
 

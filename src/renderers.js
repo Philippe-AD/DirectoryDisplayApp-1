@@ -32,53 +32,53 @@ export function getFileExtension(name) {
   return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : 'FILE';
 }
 
+function renderBreadcrumbs(pathStr) {
+  if (!pathStr) return '';
+  const parts = pathStr.split(/[/\\]/).filter(Boolean);
+  if (parts.length === 0) return escapeHtml(pathStr);
+
+  return parts
+    .map((part, index) => {
+      const isLast = index === parts.length - 1;
+      return `<span class="${isLast ? 'text-slate-200 font-semibold' : 'text-slate-400'}">${escapeHtml(part)}</span>`;
+    })
+    .join('<span class="text-slate-600 mx-1">/</span>');
+}
+
 export function renderWelcomeScreen(error) {
   return `
-    <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      <div class="max-w-2xl mx-auto px-4 pt-20 pb-12">
-        <div class="text-center mb-12">
-          <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-3xl shadow-lg shadow-blue-600/20 mb-6">
-            ${icons.hardDrive({ size: 32, className: 'text-white' })}
-          </div>
-          <h1 class="text-4xl font-bold text-gray-900 tracking-tight">Explorateur de répertoires</h1>
-          <p class="text-gray-500 mt-3 text-lg">Parcourez et prévisualisez n'importe quel dossier de votre ordinateur</p>
+    <div class="h-screen w-screen bg-slate-900 text-slate-100 flex items-center justify-center p-6">
+      <div class="max-w-md w-full bg-slate-800/90 border border-slate-700/80 rounded-xl p-8 shadow-2xl backdrop-blur-sm text-center">
+        <div class="inline-flex items-center justify-center w-14 h-14 bg-blue-600/20 text-blue-400 rounded-xl mb-4 border border-blue-500/30">
+          ${icons.hardDrive({ size: 28 })}
+        </div>
+        <h1 class="text-2xl font-bold text-white tracking-tight">Explorateur de répertoires</h1>
+        <p class="text-slate-400 mt-2 text-xs">Parcourez et prévisualisez vos répertoires et fichiers locaux avec une interface bureau moderne.</p>
+
+        <div class="mt-6 space-y-3">
+          <button
+            id="btn-open-folder"
+            class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 px-4 text-xs rounded-lg transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            ${icons.folderOpen({ size: 18 })}
+            Ouvrir un dossier
+          </button>
         </div>
 
-        <div class="bg-white rounded-3xl border border-gray-100 shadow-xl p-8 space-y-6">
-          <div class="space-y-4">
-            <div class="flex items-center gap-3.5">
-              <div class="p-3 bg-blue-50 rounded-2xl">
-                ${icons.folderOpen({ size: 28, className: 'text-blue-600' })}
-              </div>
-              <div>
-                <h2 class="text-lg font-semibold text-gray-900">Ouvrir un dossier</h2>
-                <p class="text-sm text-gray-500">Sélectionnez n'importe quel dossier local pour afficher son contenu</p>
-              </div>
+        ${error ? `
+          <div class="mt-4 p-3 bg-red-900/40 border border-red-700/50 rounded-lg text-left flex flex-col gap-2">
+            <div class="flex items-start gap-2">
+              ${icons.alertCircle({ size: 16, className: 'text-red-400 flex-shrink-0 mt-0.5' })}
+              <p class="text-xs text-red-200">${escapeHtml(error)}</p>
             </div>
             <button
-              id="btn-open-folder"
-              class="w-full flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 text-base rounded-2xl transition-all shadow-md shadow-blue-600/20 active:scale-[0.99]"
+              id="btn-use-fallback"
+              class="self-start text-[11px] font-medium text-red-300 hover:text-white underline transition-colors"
             >
-              ${icons.folderOpen({ size: 22 })}
-              Ouvrir un dossier
+              Utiliser le sélecteur alternatif
             </button>
           </div>
-
-          ${error ? `
-            <div class="mt-5 p-4 bg-red-50 rounded-2xl flex flex-col gap-3">
-              <div class="flex items-start gap-3">
-                ${icons.alertCircle({ size: 20, className: 'text-red-600 flex-shrink-0 mt-0.5' })}
-                <p class="text-sm text-red-700">${escapeHtml(error)}</p>
-              </div>
-              <button
-                id="btn-use-fallback"
-                class="self-start text-xs font-semibold text-red-700 hover:text-red-900 underline transition-colors"
-              >
-                Utiliser le sélecteur alternatif
-              </button>
-            </div>
-          ` : ''}
-        </div>
+        ` : ''}
       </div>
     </div>
   `;
@@ -86,21 +86,19 @@ export function renderWelcomeScreen(error) {
 
 export function renderFallbackUploadScreen() {
   return `
-    <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      <div class="max-w-2xl mx-auto px-4 pt-20 pb-12">
-        <div class="text-center mb-12">
-          <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-3xl shadow-lg shadow-blue-600/20 mb-6">
-            ${icons.hardDrive({ size: 32, className: 'text-white' })}
-          </div>
-          <h1 class="text-4xl font-bold text-gray-900 tracking-tight">File Explorer</h1>
-          <p class="text-gray-500 mt-3 text-lg">Choose files from your computer</p>
+    <div class="h-screen w-screen bg-slate-900 text-slate-100 flex items-center justify-center p-6">
+      <div class="max-w-md w-full bg-slate-800/90 border border-slate-700/80 rounded-xl p-8 shadow-2xl text-center">
+        <div class="inline-flex items-center justify-center w-14 h-14 bg-blue-600/20 text-blue-400 rounded-xl mb-4 border border-blue-500/30">
+          ${icons.hardDrive({ size: 28 })}
         </div>
+        <h1 class="text-2xl font-bold text-white tracking-tight">Sélecteur de fichiers</h1>
+        <p class="text-slate-400 mt-2 text-xs">Sélectionnez les fichiers ou le répertoire depuis votre disque.</p>
 
-        <div class="bg-white rounded-3xl border border-gray-100 shadow-xl p-8">
-          <label class="w-full flex flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-200 hover:border-blue-400 rounded-2xl py-12 cursor-pointer transition-colors group">
-            ${icons.upload({ size: 32, className: 'text-gray-400 group-hover:text-blue-600 transition-colors' })}
-            <span class="font-semibold text-gray-700 group-hover:text-blue-600 transition-colors">Choose a folder or files</span>
-            <span class="text-sm text-gray-400">Files stay on your computer</span>
+        <div class="mt-6">
+          <label class="w-full flex flex-col items-center justify-center gap-2 border border-dashed border-slate-600 hover:border-blue-400 bg-slate-800 hover:bg-slate-750 rounded-lg py-8 cursor-pointer transition-colors group">
+            ${icons.upload({ size: 26, className: 'text-slate-400 group-hover:text-blue-400 transition-colors' })}
+            <span class="font-medium text-xs text-slate-200 group-hover:text-white">Choisir des fichiers ou un dossier</span>
+            <span class="text-[11px] text-slate-400">Les fichiers restent localement sur votre machine</span>
             <input
               type="file"
               id="input-fallback-files"
@@ -112,9 +110,9 @@ export function renderFallbackUploadScreen() {
           </label>
           <button
             id="btn-cancel-fallback"
-            class="mt-4 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            class="mt-4 text-xs text-slate-400 hover:text-slate-200 transition-colors"
           >
-            Back
+            Retour
           </button>
         </div>
       </div>
@@ -124,7 +122,7 @@ export function renderFallbackUploadScreen() {
 
 export function renderTreeNode(node, isSelected = false) {
   const level = node.level || 0;
-  const indentPx = Math.min(level * 18 + 8, 200);
+  const indentPx = Math.min(level * 16 + 6, 200);
 
   const isDir = node.type === 'directory';
   const isDocument = !isDir && (/\.(pdf|docx?)$/i.test(node.name));
@@ -135,66 +133,66 @@ export function renderTreeNode(node, isSelected = false) {
   let iconHtml = '';
   if (isDir) {
     iconHtml = node.isExpanded
-      ? icons.folderOpen({ size: 18, className: 'text-amber-500 flex-shrink-0' })
-      : icons.folder({ size: 18, className: 'text-amber-500 flex-shrink-0' });
+      ? icons.folderOpen({ size: 16, className: 'text-amber-500 flex-shrink-0' })
+      : icons.folder({ size: 16, className: 'text-amber-500 flex-shrink-0' });
   } else if (isImage) {
-    iconHtml = icons.image({ size: 18, className: 'text-purple-500 flex-shrink-0' });
+    iconHtml = icons.image({ size: 16, className: 'text-purple-600 flex-shrink-0' });
   } else if (isAudio) {
-    iconHtml = icons.music({ size: 18, className: 'text-emerald-500 flex-shrink-0' });
+    iconHtml = icons.music({ size: 16, className: 'text-emerald-600 flex-shrink-0' });
   } else if (isVideo) {
-    iconHtml = icons.video({ size: 18, className: 'text-rose-500 flex-shrink-0' });
+    iconHtml = icons.video({ size: 16, className: 'text-rose-600 flex-shrink-0' });
   } else if (isDocument) {
-    iconHtml = icons.fileText({ size: 18, className: 'text-blue-500 flex-shrink-0' });
+    iconHtml = icons.fileText({ size: 16, className: 'text-blue-600 flex-shrink-0' });
   } else {
-    iconHtml = icons.file({ size: 18, className: 'text-gray-400 flex-shrink-0' });
+    iconHtml = icons.file({ size: 16, className: 'text-slate-400 flex-shrink-0' });
   }
 
   let toggleBtnHtml = '';
   if (isDir) {
     if (node.isLoading) {
       toggleBtnHtml = `
-        <span class="w-5 h-5 flex items-center justify-center animate-spin text-blue-600 flex-shrink-0" aria-label="Chargement du dossier">
-          ${icons.loader({ size: 14 })}
+        <span class="w-4 h-4 flex items-center justify-center animate-spin text-blue-600 flex-shrink-0" aria-label="Chargement du dossier">
+          ${icons.loader({ size: 12 })}
         </span>
       `;
     } else {
       const iconCaret = node.isExpanded
-        ? icons.chevronDown({ size: 14, className: 'text-gray-500' })
-        : icons.chevronRight({ size: 14, className: 'text-gray-400 group-hover:text-gray-600' });
+        ? icons.chevronDown({ size: 12, className: 'text-slate-600' })
+        : icons.chevronRight({ size: 12, className: 'text-slate-400 group-hover:text-slate-600' });
       toggleBtnHtml = `
         <button
           type="button"
           tabindex="-1"
           aria-label="${node.isExpanded ? 'Replier le dossier' : 'Développer le dossier'}"
           data-node-toggle="${escapeHtml(node.path)}"
-          class="btn-toggle-folder w-5 h-5 flex items-center justify-center rounded hover:bg-gray-200/80 transition-colors flex-shrink-0"
+          class="btn-toggle-folder w-4 h-4 flex items-center justify-center rounded hover:bg-slate-200/80 transition-colors flex-shrink-0"
         >
           ${iconCaret}
         </button>
       `;
     }
   } else {
-    toggleBtnHtml = `<span class="w-5 h-5 flex-shrink-0"></span>`;
+    toggleBtnHtml = `<span class="w-4 h-4 flex-shrink-0"></span>`;
   }
 
   const selectedClasses = isSelected
-    ? 'bg-blue-100/80 text-blue-900 font-semibold ring-1 ring-blue-400'
-    : 'text-gray-700 hover:bg-gray-100/80';
+    ? 'bg-blue-100/80 text-blue-900 font-medium border-l-2 border-blue-600 shadow-2xs'
+    : 'text-slate-700 hover:bg-slate-100/90 border-l-2 border-transparent';
 
   const expandedAttr = isDir ? `aria-expanded="${node.isExpanded ? 'true' : 'false'}"` : '';
 
   let errorHtml = '';
   if (isDir && node.error) {
     errorHtml = `
-      <div class="my-1 ml-6 p-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center justify-between gap-2">
-        <div class="flex items-center gap-1.5 min-w-0">
-          ${icons.alertCircle({ size: 14, className: 'text-red-600 flex-shrink-0' })}
+      <div class="my-1 ml-5 p-1.5 bg-red-50 border border-red-200 rounded text-[11px] text-red-700 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-1 min-w-0">
+          ${icons.alertCircle({ size: 13, className: 'text-red-600 flex-shrink-0' })}
           <span class="truncate">${escapeHtml(node.error)}</span>
         </div>
         <button
           type="button"
           data-node-retry="${escapeHtml(node.path)}"
-          class="btn-retry-folder px-2 py-0.5 bg-red-600 text-white rounded font-medium hover:bg-red-700 text-[11px] flex-shrink-0 transition-colors"
+          class="btn-retry-folder px-1.5 py-0.5 bg-red-600 text-white rounded font-medium hover:bg-red-700 text-[10px] flex-shrink-0 transition-colors"
         >
           Réessayer
         </button>
@@ -212,16 +210,16 @@ export function renderTreeNode(node, isSelected = false) {
       aria-level="${level + 1}"
       aria-label="${escapeHtml(node.name)}"
       ${expandedAttr}
-      class="tree-node-item group flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-xl"
+      class="tree-node-item group flex flex-col focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 rounded"
     >
       <div
-        class="flex items-center gap-1.5 py-1.5 px-2 rounded-xl cursor-pointer transition-colors duration-150 ${selectedClasses}"
+        class="flex items-center gap-1.5 py-1 px-1.5 rounded cursor-pointer transition-colors duration-100 text-xs select-none ${selectedClasses}"
         style="padding-left: ${indentPx}px;"
       >
         ${toggleBtnHtml}
         ${iconHtml}
-        <span class="truncate text-xs flex-1">${escapeHtml(node.name)}</span>
-        ${node.size !== undefined && !isDir ? `<span class="text-[10px] text-gray-400 group-hover:text-gray-500 font-normal flex-shrink-0">${formatFileSize(node.size)}</span>` : ''}
+        <span class="truncate flex-1 tracking-tight">${escapeHtml(node.name)}</span>
+        ${node.size !== undefined && !isDir ? `<span class="text-[10px] text-slate-400 group-hover:text-slate-500 font-normal flex-shrink-0 ml-2">${formatFileSize(node.size)}</span>` : ''}
       </div>
       ${errorHtml}
     </div>
@@ -231,9 +229,9 @@ export function renderTreeNode(node, isSelected = false) {
 export function renderTreeView(visibleNodes = [], selectedPath = null) {
   if (visibleNodes.length === 0) {
     return `
-      <div class="text-center py-12 text-gray-400 bg-white rounded-2xl border border-gray-200/80 p-4">
-        ${icons.folder({ size: 36, className: 'mx-auto mb-2 opacity-30' })}
-        <p class="font-medium text-xs">Aucun élément dans cette arborescence</p>
+      <div class="text-center py-10 text-slate-400 p-4">
+        ${icons.folder({ size: 32, className: 'mx-auto mb-2 opacity-40 text-slate-400' })}
+        <p class="font-normal text-xs">Aucun élément dans cette arborescence</p>
       </div>
     `;
   }
@@ -243,7 +241,7 @@ export function renderTreeView(visibleNodes = [], selectedPath = null) {
       id="tree-root"
       role="tree"
       aria-label="Arborescence du dossier"
-      class="space-y-0.5 pb-6"
+      class="space-y-0.5 pb-4"
     >
       ${visibleNodes.map((node) => renderTreeNode(node, node.path === selectedPath)).join('')}
     </div>
@@ -253,43 +251,42 @@ export function renderTreeView(visibleNodes = [], selectedPath = null) {
 export function renderPreviewPanel(selectedItem, previewState = { status: 'idle' }, objectUrl = null) {
   if (!selectedItem) {
     return `
-      <div id="preview-panel" class="h-full flex flex-col items-center justify-center text-center p-8 bg-white rounded-3xl border border-gray-200/80 shadow-sm">
-        <div class="p-4 bg-gray-50 rounded-2xl mb-4 text-gray-400">
-          ${icons.file({ size: 36 })}
+      <div id="preview-panel" class="h-full flex flex-col items-center justify-center text-center p-6 bg-white rounded-lg border border-slate-200/80">
+        <div class="p-3 bg-slate-100 rounded-lg mb-3 text-slate-400">
+          ${icons.file({ size: 32 })}
         </div>
-        <p class="font-semibold text-gray-700 text-base">Aucun fichier sélectionné</p>
-        <p class="text-xs text-gray-400 mt-1.5 max-w-xs">Sélectionnez un fichier dans l'arborescence pour afficher immédiatement sa prévisualisation.</p>
+        <p class="font-medium text-slate-700 text-sm">Aucun fichier sélectionné</p>
+        <p class="text-xs text-slate-400 mt-1 max-w-xs">Sélectionnez un fichier dans l'arborescence pour afficher immédiatement sa prévisualisation.</p>
       </div>
     `;
   }
 
   if (selectedItem.type === 'directory' || previewState.status === 'folder') {
-    const color = getColorForPath(selectedItem.path);
     return `
-      <div id="preview-panel" class="h-full flex flex-col p-6 bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-y-auto">
-        <div class="flex items-center gap-3.5 pb-4 border-b border-gray-100">
-          <div class="p-3.5 rounded-2xl ${color.light} ${color.text}">
-            ${icons.folderOpen({ size: 28 })}
+      <div id="preview-panel" class="h-full flex flex-col p-5 bg-white rounded-lg border border-slate-200/80 overflow-y-auto">
+        <div class="flex items-center gap-3 pb-3 border-b border-slate-100">
+          <div class="p-2.5 rounded-lg bg-amber-50 text-amber-600 flex-shrink-0">
+            ${icons.folderOpen({ size: 24 })}
           </div>
           <div class="min-w-0 flex-1">
-            <h3 class="font-bold text-gray-900 text-lg truncate">${escapeHtml(selectedItem.name)}</h3>
-            <span class="inline-block text-xs font-semibold uppercase tracking-wider text-amber-700 px-2 py-0.5 rounded bg-amber-50">Dossier</span>
+            <h3 class="font-semibold text-slate-900 text-sm truncate">${escapeHtml(selectedItem.name)}</h3>
+            <span class="inline-block text-[10px] font-medium uppercase tracking-wider text-amber-800 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200/60">Dossier</span>
           </div>
         </div>
 
-        <div class="mt-6 space-y-3">
-          <div class="flex items-center justify-between p-3.5 rounded-2xl bg-gray-50 text-sm">
-            <span class="text-gray-500 font-medium">Type</span>
-            <span class="font-semibold text-gray-900">Dossier de fichiers</span>
+        <div class="mt-4 space-y-2 text-xs">
+          <div class="flex items-center justify-between p-2.5 rounded bg-slate-50 border border-slate-100">
+            <span class="text-slate-500 font-medium">Type</span>
+            <span class="font-medium text-slate-800">Dossier de fichiers</span>
           </div>
-          <div class="flex flex-col gap-1 p-3.5 rounded-2xl bg-gray-50 text-sm">
-            <span class="text-gray-500 font-medium">Chemin d'accès</span>
-            <span class="font-mono text-xs text-gray-800 break-all">${escapeHtml(selectedItem.path)}</span>
+          <div class="flex flex-col gap-1 p-2.5 rounded bg-slate-50 border border-slate-100">
+            <span class="text-slate-500 font-medium">Chemin d'accès</span>
+            <span class="font-mono text-[11px] text-slate-800 break-all">${escapeHtml(selectedItem.path)}</span>
           </div>
         </div>
 
-        <div class="mt-8 p-4 rounded-2xl bg-blue-50/70 border border-blue-100 text-xs text-blue-900 flex items-start gap-2.5">
-          ${icons.folder({ size: 18, className: 'text-blue-600 flex-shrink-0 mt-0.5' })}
+        <div class="mt-6 p-3 rounded bg-blue-50/60 border border-blue-100 text-xs text-blue-900 flex items-start gap-2">
+          ${icons.folder({ size: 16, className: 'text-blue-600 flex-shrink-0 mt-0.5' })}
           <span>Cliquez sur la flèche ou double-cliquez pour développer le contenu de ce dossier dans l'arborescence.</span>
         </div>
       </div>
@@ -298,62 +295,63 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
 
   if (previewState.status === 'loading') {
     return `
-      <div id="preview-panel" class="h-full flex flex-col items-center justify-center text-center p-8 bg-white rounded-3xl border border-gray-200/80 shadow-sm">
-        <div class="animate-spin text-blue-600 mb-4">
-          ${icons.loader({ size: 36 })}
+      <div id="preview-panel" class="h-full flex flex-col items-center justify-center text-center p-6 bg-white rounded-lg border border-slate-200/80">
+        <div class="animate-spin text-blue-600 mb-3">
+          ${icons.loader({ size: 28 })}
         </div>
-        <p class="font-semibold text-gray-800 text-sm">Chargement de la prévisualisation...</p>
-        <p class="text-xs text-gray-400 mt-1 truncate max-w-xs">${escapeHtml(selectedItem.name)}</p>
+        <p class="font-medium text-slate-800 text-xs">Chargement de la prévisualisation...</p>
+        <p class="text-[11px] text-slate-400 mt-1 truncate max-w-xs">${escapeHtml(selectedItem.name)}</p>
       </div>
     `;
   }
 
-  const color = getColorForPath(selectedItem.path);
   const preview = previewState.preview || {};
 
   let previewBodyHtml = '';
 
   if (preview.kind === 'image' && objectUrl) {
     previewBodyHtml = `
-      <div class="mt-4">
-        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Aperçu image</p>
-        <div class="flex items-center justify-center p-4 bg-gray-100 rounded-2xl border border-gray-200 overflow-hidden max-h-[50vh]">
+      <div class="mt-3 flex-1 flex flex-col min-h-0">
+        <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Aperçu image</p>
+        <div class="flex-1 flex items-center justify-center p-3 bg-slate-900/95 rounded-lg border border-slate-800 overflow-hidden">
           <img
             src="${objectUrl}"
             alt="${escapeHtml(selectedItem.name)}"
-            class="max-w-full max-h-[45vh] object-contain rounded-xl shadow-sm"
+            class="max-w-full max-h-full object-contain rounded shadow-sm"
           />
         </div>
       </div>
     `;
   } else if (preview.kind === 'audio' && objectUrl) {
     previewBodyHtml = `
-      <div class="mt-4">
-        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Aperçu audio</p>
-        <div class="flex flex-col items-center justify-center p-6 bg-slate-900 rounded-2xl border border-gray-200 shadow-sm gap-4">
-          <div class="p-4 bg-blue-600/20 text-blue-400 rounded-full">
-            ${icons.music({ size: 40 })}
-          </div>
-          <audio
-            controls
-            src="${objectUrl}"
-            class="w-full"
-            preload="metadata"
-          >
-            Votre navigateur ne supporte pas la lecture audio.
-          </audio>
+      <div class="mt-3 flex-1 flex flex-col justify-center items-center p-6 bg-slate-900 rounded-lg border border-slate-800 text-slate-100 gap-4">
+        <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider self-start">Aperçu audio</p>
+        <div class="p-3.5 bg-blue-600/20 text-blue-400 rounded-full border border-blue-500/30">
+          ${icons.music({ size: 36 })}
         </div>
+        <div class="text-center">
+          <p class="font-medium text-xs text-slate-200">${escapeHtml(selectedItem.name)}</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Fichier Audio</p>
+        </div>
+        <audio
+          controls
+          src="${objectUrl}"
+          class="w-full max-w-md mt-2"
+          preload="metadata"
+        >
+          Votre navigateur ne supporte pas la lecture audio.
+        </audio>
       </div>
     `;
   } else if (preview.kind === 'video' && objectUrl) {
     previewBodyHtml = `
-      <div class="mt-4">
-        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Aperçu vidéo</p>
-        <div class="flex items-center justify-center p-2 bg-black rounded-2xl border border-gray-200 overflow-hidden max-h-[50vh]">
+      <div class="mt-3 flex-1 flex flex-col min-h-0">
+        <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Aperçu vidéo</p>
+        <div class="flex-1 flex items-center justify-center p-2 bg-black rounded-lg border border-slate-800 overflow-hidden">
           <video
             controls
             src="${objectUrl}"
-            class="max-w-full max-h-[45vh] rounded-xl"
+            class="max-w-full max-h-full rounded"
             preload="metadata"
           >
             Votre navigateur ne supporte pas la lecture vidéo.
@@ -363,13 +361,13 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
     `;
   } else if (preview.kind === 'pdf' && objectUrl) {
     previewBodyHtml = `
-      <div class="mt-4">
-        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Aperçu PDF</p>
+      <div class="mt-3 flex-1 flex flex-col min-h-0">
+        <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Aperçu PDF</p>
         <object
           data="${objectUrl}"
           type="application/pdf"
           title="Prévisualisation PDF de ${escapeHtml(selectedItem.name)}"
-          class="w-full h-[50vh] rounded-2xl border border-gray-200 bg-gray-50 overflow-hidden"
+          class="w-full flex-1 rounded-lg border border-slate-200 bg-slate-50 overflow-hidden"
         >
           <iframe
             src="${objectUrl}"
@@ -382,15 +380,13 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
     `;
   } else if (preview.kind === 'word-docx') {
     previewBodyHtml = `
-      <div class="mt-4 flex-1 flex flex-col min-h-0">
-        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-          Aperçu Document Word (.docx)
-        </p>
+      <div class="mt-3 flex-1 flex flex-col min-h-0">
+        <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Aperçu Document Word (.docx)</p>
         <div
           id="docx-preview-container"
-          class="w-full h-[52vh] overflow-auto rounded-2xl border border-gray-200 bg-slate-100 p-2 shadow-inner"
+          class="w-full flex-1 overflow-auto rounded-lg border border-slate-200 bg-slate-100 p-2 shadow-inner"
         >
-          <div class="flex items-center justify-center h-full text-xs text-gray-400">
+          <div class="flex items-center justify-center h-full text-xs text-slate-400">
             Chargement de la mise en page Word...
           </div>
         </div>
@@ -404,23 +400,23 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
     const totalSize = preview.totalSize ?? selectedItem.size;
 
     previewBodyHtml = `
-      <div class="mt-4">
+      <div class="mt-3 flex-1 flex flex-col min-h-0">
         ${isTruncated ? `
-          <div class="mb-3 p-3 rounded-2xl bg-amber-50 border border-amber-200/80 text-xs font-medium text-amber-900 flex items-center gap-2 shadow-sm" id="preview-truncated-warning">
-            ${icons.alertCircle({ size: 18, className: 'text-amber-600 flex-shrink-0' })}
+          <div class="mb-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] font-medium text-amber-900 flex items-center gap-2 flex-shrink-0" id="preview-truncated-warning">
+            ${icons.alertCircle({ size: 15, className: 'text-amber-600 flex-shrink-0' })}
             <span>Aperçu limité au premier mégaoctet — taille totale : ${formatFileSize(totalSize)}</span>
           </div>
         ` : ''}
-        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+        <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
           ${preview.kind === 'word' ? 'Aperçu Document Word' : 'Aperçu contenu'}
         </p>
         ${content === '' ? `
-          <div class="p-4 bg-gray-50 rounded-2xl border border-gray-200 text-xs text-gray-500 italic">
+          <div class="p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-500 italic">
             Ce fichier est vide.
           </div>
         ` : `
           <pre
-            class="text-xs rounded-2xl p-4 max-h-[50vh] overflow-auto bg-gray-900 text-gray-100 font-mono leading-relaxed shadow-inner"
+            class="flex-1 text-xs rounded-lg p-3 overflow-auto bg-slate-900 text-slate-100 font-mono leading-relaxed shadow-inner border border-slate-800 min-h-0"
             aria-label="Source code preview for ${escapeHtml(selectedItem.name)}"
           ><code>${highlightedCode}</code></pre>
         `}
@@ -428,31 +424,31 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
     `;
   } else if (preview.kind === 'unsupported-word' || previewState.status === 'unsupported-word') {
     previewBodyHtml = `
-      <div class="mt-4 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
-        ${icons.alertCircle({ size: 18, className: 'text-amber-600 flex-shrink-0 mt-0.5' })}
+      <div class="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+        ${icons.alertCircle({ size: 16, className: 'text-amber-600 flex-shrink-0 mt-0.5' })}
         <div>
-          <p class="font-semibold">Format Word hérité (.doc)</p>
-          <p class="mt-1 text-amber-800">Les fichiers .doc ne peuvent pas être prévisualisés directement. Téléchargez le fichier pour l'ouvrir dans Microsoft Word.</p>
+          <p class="font-semibold text-xs">Format Word hérité (.doc)</p>
+          <p class="mt-0.5 text-[11px] text-amber-800">Les fichiers .doc ne peuvent pas être prévisualisés directement. Téléchargez le fichier pour l'ouvrir dans Microsoft Word.</p>
         </div>
       </div>
     `;
   } else if (preview.kind === 'word-error' || previewState.status === 'word-error' || previewState.status === 'error') {
     previewBodyHtml = `
-      <div class="mt-4 p-4 rounded-2xl bg-red-50 border border-red-200 text-xs text-red-900 flex items-start gap-2.5">
-        ${icons.alertCircle({ size: 18, className: 'text-red-600 flex-shrink-0 mt-0.5' })}
+      <div class="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-900 flex items-start gap-2">
+        ${icons.alertCircle({ size: 16, className: 'text-red-600 flex-shrink-0 mt-0.5' })}
         <div>
-          <p class="font-semibold">Erreur de lecture</p>
-          <p class="mt-1 text-red-800">Impossible de lire le contenu de ce fichier. Il est peut-être corrompu ou protégé.</p>
+          <p class="font-semibold text-xs">Erreur de lecture</p>
+          <p class="mt-0.5 text-[11px] text-red-800">Impossible de lire le contenu de ce fichier. Il est peut-être corrompu ou protégé.</p>
         </div>
       </div>
     `;
   } else {
     previewBodyHtml = `
-      <div class="mt-4 p-4 rounded-2xl bg-gray-100 border border-gray-200 text-xs text-gray-600 flex items-start gap-2.5">
-        ${icons.alertCircle({ size: 18, className: 'text-gray-400 flex-shrink-0 mt-0.5' })}
+      <div class="mt-3 p-3 rounded-lg bg-slate-100 border border-slate-200 text-xs text-slate-600 flex items-start gap-2">
+        ${icons.alertCircle({ size: 16, className: 'text-slate-400 flex-shrink-0 mt-0.5' })}
         <div>
-          <p class="font-semibold">Format non pris en charge</p>
-          <p class="mt-1 text-gray-500">Aucun aperçu disponible dans l'application pour ce type de fichier.</p>
+          <p class="font-semibold text-xs">Format non pris en charge</p>
+          <p class="mt-0.5 text-[11px] text-slate-500">Aucun aperçu disponible dans l'application pour ce type de fichier.</p>
         </div>
       </div>
     `;
@@ -463,49 +459,49 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
   const isVideoHeader = isVideoFile({ name: selectedItem.name, type: '' });
 
   const headerIcon = isImageHeader
-    ? icons.image({ size: 24 })
+    ? icons.image({ size: 20, className: 'text-purple-600' })
     : isAudioHeader
-      ? icons.music({ size: 24 })
+      ? icons.music({ size: 20, className: 'text-emerald-600' })
       : isVideoHeader
-        ? icons.video({ size: 24 })
-        : icons.fileText({ size: 24 });
+        ? icons.video({ size: 20, className: 'text-rose-600' })
+        : icons.fileText({ size: 20, className: 'text-blue-600' });
+
+  const ext = getFileExtension(selectedItem.name);
 
   return `
-    <div id="preview-panel" class="h-full flex flex-col p-6 bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-y-auto">
-      <div class="flex items-start gap-3.5 pb-4 border-b border-gray-100">
-        <div class="p-3 rounded-2xl ${color.light} ${color.text} flex-shrink-0">
-          ${headerIcon}
+    <div id="preview-panel" class="h-full flex flex-col p-4 bg-white rounded-lg border border-slate-200/80 overflow-hidden">
+      <!-- File Header Bar -->
+      <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 flex-shrink-0">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="p-2 rounded bg-slate-100 flex-shrink-0">
+            ${headerIcon}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <h3 class="font-semibold text-slate-900 text-xs truncate max-w-sm" title="${escapeHtml(selectedItem.name)}">${escapeHtml(selectedItem.name)}</h3>
+              <span class="text-[10px] font-mono font-medium px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded border border-slate-200/80 flex-shrink-0">${ext}</span>
+            </div>
+            <p class="text-[11px] text-slate-400 font-mono truncate mt-0.5">
+              ${selectedItem.size !== undefined ? `${formatFileSize(selectedItem.size)} • ` : ''}${escapeHtml(selectedItem.path)}
+            </p>
+          </div>
         </div>
-        <div class="min-w-0 flex-1">
-          <h3 class="font-bold text-gray-900 text-base truncate">${escapeHtml(selectedItem.name)}</h3>
-          <p class="text-xs text-gray-500 mt-0.5">
-            ${getFileExtension(selectedItem.name)}
-            ${selectedItem.size !== undefined ? ` • ${formatFileSize(selectedItem.size)}` : ''}
-          </p>
-        </div>
-      </div>
 
-      <div class="mt-4 space-y-2">
-        <div class="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 text-xs">
-          <span class="text-gray-500 font-medium">Chemin</span>
-          <span class="font-mono text-gray-800 truncate max-w-[180px]">${escapeHtml(selectedItem.path)}</span>
-        </div>
-      </div>
-
-      ${previewBodyHtml}
-
-      ${objectUrl ? `
-        <div class="mt-6 pt-4 border-t border-gray-100">
+        ${objectUrl ? `
           <a
             href="${objectUrl}"
             download="${escapeHtml(selectedItem.name)}"
-            class="inline-flex items-center justify-center gap-2 w-full rounded-2xl bg-blue-600 px-4 py-3 text-xs font-semibold text-white hover:bg-blue-700 transition-colors shadow-md shadow-blue-600/20"
+            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-[11px] font-medium text-white transition-colors shadow-2xs flex-shrink-0"
+            title="Télécharger le fichier"
           >
-            ${icons.download({ size: 16 })}
-            Télécharger le fichier
+            ${icons.download({ size: 14 })}
+            <span class="hidden sm:inline">Télécharger</span>
           </a>
-        </div>
-      ` : ''}
+        ` : ''}
+      </div>
+
+      <!-- Preview Body -->
+      ${previewBodyHtml}
     </div>
   `;
 }
@@ -525,19 +521,17 @@ export function renderMainLayout(
   panelWidth = 380,
   isHeaderCollapsed = false
 ) {
-  const color = getColorForPath(currentPath || '/files');
   const selectedPath = selectedItem ? selectedItem.path : null;
 
   let contentHtml = '';
 
   if (loading) {
     contentHtml = `
-      <div class="space-y-2 py-2">
-        ${[1, 2, 3, 4, 5].map(() => `
-          <div class="bg-white rounded-xl border border-gray-100 p-3 animate-pulse flex items-center gap-3">
-            <div class="w-5 h-5 rounded bg-gray-200"></div>
-            <div class="w-5 h-5 rounded bg-gray-200"></div>
-            <div class="h-4 bg-gray-200 rounded flex-1"></div>
+      <div class="space-y-1 py-1 px-1">
+        ${[1, 2, 3, 4, 5, 6].map(() => `
+          <div class="bg-slate-100 rounded p-2 animate-pulse flex items-center gap-2">
+            <div class="w-4 h-4 rounded bg-slate-200"></div>
+            <div class="h-3 bg-slate-200 rounded flex-1"></div>
           </div>
         `).join('')}
       </div>
@@ -548,21 +542,81 @@ export function renderMainLayout(
 
   const headerContentHtml = isHeaderCollapsed
     ? `
-      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="p-1.5 bg-white/20 rounded-lg text-white flex-shrink-0">
-            ${icons.folder({ size: 18 })}
+      <div class="flex items-center justify-between gap-4 w-full">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="p-1 bg-blue-600/30 rounded text-blue-400 flex-shrink-0">
+            ${icons.folder({ size: 16 })}
           </div>
           <div class="min-w-0 flex items-center gap-2">
-            <h1 class="text-sm font-bold text-white truncate">${escapeHtml(displayName)}</h1>
-            <span class="text-white/60 text-xs hidden md:inline truncate max-w-xs">(${escapeHtml(currentPath)})</span>
+            <h1 class="text-xs font-semibold text-slate-100 truncate">${escapeHtml(displayName)}</h1>
+            <span class="text-slate-400 text-[11px] font-mono hidden md:inline truncate max-w-xs">(${escapeHtml(currentPath)})</span>
           </div>
         </div>
 
-        <div class="flex items-center gap-2 flex-shrink-0">
+        <div class="flex items-center gap-1.5 flex-shrink-0">
           <button
             id="btn-refresh-root"
-            class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+            class="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-xs font-medium transition-colors border border-slate-700/60"
+            aria-label="Actualiser l'arborescence"
+            title="Actualiser l'arborescence"
+          >
+            ${icons.refreshCw({ size: 13 })}
+            <span class="hidden sm:inline">Actualiser</span>
+          </button>
+
+          <button
+            id="btn-toggle-header"
+            class="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-xs font-medium transition-colors border border-slate-700/60"
+            aria-label="Agrandir l'en-tête"
+            title="Agrandir l'en-tête"
+          >
+            ${icons.chevronDown({ size: 13 })}
+            <span class="hidden sm:inline">Agrandir</span>
+          </button>
+
+          <button
+            id="btn-toggle-panel"
+            class="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-xs font-medium transition-colors border border-slate-700/60"
+            aria-label="${isPanelVisible ? 'Masquer le panneau' : 'Afficher le panneau'}"
+            title="${isPanelVisible ? 'Masquer le panneau' : 'Afficher le panneau'}"
+          >
+            ${isPanelVisible ? icons.eyeOff({ size: 13 }) : icons.eye({ size: 13 })}
+            <span class="hidden sm:inline">${isPanelVisible ? 'Masquer' : 'Panneau'}</span>
+          </button>
+
+          ${!usingFallback ? `
+            <button
+              id="btn-open-another"
+              class="flex items-center gap-1 bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-xs font-medium transition-colors shadow-2xs"
+            >
+              ${icons.folderTree({ size: 13 })}
+              <span class="hidden sm:inline">Changer dossier</span>
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `
+    : `
+      <div class="flex items-center justify-between gap-4 w-full">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="p-2 bg-blue-600/25 rounded-lg text-blue-400 border border-blue-500/30 flex-shrink-0">
+            ${icons.folder({ size: 20 })}
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <h1 class="text-sm font-bold text-white truncate tracking-tight">${escapeHtml(displayName)}</h1>
+              <span class="text-[10px] font-mono uppercase bg-blue-900/60 text-blue-300 px-1.5 py-0.5 rounded border border-blue-700/50">Explorateur</span>
+            </div>
+            <div class="text-xs text-slate-400 truncate max-w-lg mt-0.5 flex items-center font-mono">
+              ${renderBreadcrumbs(currentPath)}
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+          <button
+            id="btn-refresh-root"
+            class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1.5 rounded text-xs font-medium transition-colors border border-slate-700/60"
             aria-label="Actualiser l'arborescence"
             title="Actualiser l'arborescence"
           >
@@ -572,85 +626,30 @@ export function renderMainLayout(
 
           <button
             id="btn-toggle-header"
-            class="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
-            aria-label="Agrandir l'en-tête"
-            title="Agrandir l'en-tête"
-          >
-            ${icons.chevronDown({ size: 16 })}
-            <span class="hidden sm:inline">Agrandir</span>
-          </button>
-
-          <button
-            id="btn-toggle-panel"
-            class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
-            aria-label="${isPanelVisible ? 'Masquer le panneau' : 'Afficher le panneau'}"
-            title="${isPanelVisible ? 'Masquer le panneau' : 'Afficher le panneau'}"
-          >
-            ${isPanelVisible ? icons.eyeOff({ size: 16 }) : icons.eye({ size: 16 })}
-            <span class="hidden sm:inline">${isPanelVisible ? 'Masquer' : 'Panneau'}</span>
-          </button>
-
-          ${!usingFallback ? `
-            <button
-              id="btn-open-another"
-              class="flex items-center gap-1.5 bg-white text-gray-800 hover:bg-gray-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-sm"
-            >
-              ${icons.folderTree({ size: 16, className: 'text-blue-600' })}
-              <span class="hidden sm:inline">Changer dossier</span>
-            </button>
-          ` : ''}
-        </div>
-      </div>
-    `
-    : `
-      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div class="p-2.5 bg-white/20 rounded-2xl text-white">
-            ${icons.folder({ size: 24 })}
-          </div>
-          <div class="min-w-0">
-            <h1 class="text-xl font-bold text-white truncate">${escapeHtml(displayName)}</h1>
-            <p class="text-white/70 text-xs truncate max-w-md">${escapeHtml(currentPath)}</p>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <button
-            id="btn-refresh-root"
-            class="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
-            aria-label="Actualiser l'arborescence"
-            title="Actualiser l'arborescence"
-          >
-            ${icons.refreshCw({ size: 16 })}
-            <span class="hidden sm:inline">Actualiser</span>
-          </button>
-
-          <button
-            id="btn-toggle-header"
-            class="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+            class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1.5 rounded text-xs font-medium transition-colors border border-slate-700/60"
             aria-label="Réduire l'en-tête"
             title="Réduire l'en-tête"
           >
-            ${icons.chevronUp({ size: 16 })}
+            ${icons.chevronUp({ size: 14 })}
             <span class="hidden sm:inline">Réduire</span>
           </button>
 
           <button
             id="btn-toggle-panel"
-            class="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+            class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1.5 rounded text-xs font-medium transition-colors border border-slate-700/60"
             aria-label="${isPanelVisible ? 'Masquer le panneau de prévisualisation' : 'Afficher le panneau de prévisualisation'}"
             title="${isPanelVisible ? 'Masquer le panneau' : 'Afficher le panneau'}"
           >
-            ${isPanelVisible ? icons.eyeOff({ size: 16 }) : icons.eye({ size: 16 })}
+            ${isPanelVisible ? icons.eyeOff({ size: 14 }) : icons.eye({ size: 14 })}
             <span class="hidden sm:inline">${isPanelVisible ? 'Masquer panneau' : 'Afficher panneau'}</span>
           </button>
 
           ${!usingFallback ? `
             <button
               id="btn-open-another"
-              class="flex items-center gap-2 bg-white text-gray-800 hover:bg-gray-100 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors shadow-sm"
+              class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1.5 rounded text-xs font-medium transition-colors shadow-2xs"
             >
-              ${icons.folderTree({ size: 16, className: 'text-blue-600' })}
+              ${icons.folderTree({ size: 14 })}
               <span class="hidden sm:inline">Changer de dossier</span>
             </button>
           ` : ''}
@@ -659,49 +658,51 @@ export function renderMainLayout(
     `;
 
   return `
-    <div class="h-screen flex flex-col bg-gray-50 overflow-hidden">
+    <div class="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden font-sans">
       <!-- Fixed Header Bar -->
-      <header id="app-header" class="${color.bg} px-6 ${isHeaderCollapsed ? 'py-2.5' : 'py-4'} shadow-md transition-all duration-200 z-20 flex-shrink-0">
+      <header id="app-header" class="bg-slate-900 text-slate-100 px-4 ${isHeaderCollapsed ? 'py-2.5' : 'py-3'} border-b border-slate-800 shadow-sm transition-all duration-150 z-20 flex-shrink-0">
         ${headerContentHtml}
       </header>
 
       <!-- Main Layout Content -->
-      <div class="flex-1 max-w-7xl w-full mx-auto px-4 pt-3 pb-4 flex flex-col md:flex-row gap-0 overflow-hidden">
+      <div class="flex-1 w-full p-2 flex flex-row overflow-hidden gap-1.5">
         <!-- Zone 1: Unique TreeView Navigation -->
-        <div id="file-list-container" class="flex-1 flex flex-col min-w-[240px] max-w-[600px] h-full overflow-hidden pr-0 md:pr-1">
-          <!-- Search input -->
-          <div class="relative mb-2 flex-shrink-0">
-            <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
-              ${icons.search({ size: 16 })}
+        <div id="file-list-container" class="flex flex-col min-w-[240px] max-w-[600px] h-full overflow-hidden bg-white rounded-lg border border-slate-200/90 shadow-2xs">
+          <!-- Search input bar -->
+          <div class="p-2 border-b border-slate-100 flex-shrink-0 bg-slate-50/50">
+            <div class="relative">
+              <div class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+                ${icons.search({ size: 14 })}
+              </div>
+              <input
+                type="text"
+                id="input-search"
+                placeholder="Rechercher dans les éléments chargés..."
+                value="${escapeHtml(search)}"
+                class="w-full pl-8 pr-7 py-1.5 bg-white rounded border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              />
+              ${search ? `
+                <button id="btn-clear-search" aria-label="Effacer la recherche" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  ${icons.x({ size: 13 })}
+                </button>
+              ` : ''}
             </div>
-            <input
-              type="text"
-              id="input-search"
-              placeholder="Rechercher dans les éléments chargés..."
-              value="${escapeHtml(search)}"
-              class="w-full pl-10 pr-9 py-2.5 bg-white rounded-2xl border border-gray-200 shadow-sm text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-            />
-            ${search ? `
-              <button id="btn-clear-search" aria-label="Effacer la recherche" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                ${icons.x({ size: 14 })}
-              </button>
-            ` : ''}
           </div>
 
           ${error ? `
-            <div class="mb-2 p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-start justify-between gap-2 shadow-sm flex-shrink-0">
-              <div class="flex items-start gap-2">
-                ${icons.alertCircle({ size: 16, className: 'text-amber-600 flex-shrink-0 mt-0.5' })}
-                <p class="text-xs text-amber-900 font-medium">${escapeHtml(error)}</p>
+            <div class="m-2 p-2 bg-amber-50 border border-amber-200 rounded flex items-start justify-between gap-2 flex-shrink-0 text-xs">
+              <div class="flex items-start gap-1.5">
+                ${icons.alertCircle({ size: 14, className: 'text-amber-600 flex-shrink-0 mt-0.5' })}
+                <p class="text-[11px] text-amber-900 font-medium">${escapeHtml(error)}</p>
               </div>
-              <button id="btn-dismiss-error" aria-label="Fermer l'alerte" class="text-amber-700 hover:text-amber-900 text-xs font-semibold underline flex-shrink-0">
+              <button id="btn-dismiss-error" aria-label="Fermer l'alerte" class="text-amber-700 hover:text-amber-900 text-[11px] font-semibold underline flex-shrink-0">
                 OK
               </button>
             </div>
           ` : ''}
 
           <!-- Tree View Scroll Container -->
-          <div id="file-list" class="flex-1 overflow-y-auto pr-1 bg-white rounded-2xl border border-gray-200/80 p-2 shadow-sm">
+          <div id="file-list" class="flex-1 overflow-y-auto p-1.5">
             ${contentHtml}
           </div>
         </div>
@@ -714,10 +715,10 @@ export function renderMainLayout(
             aria-orientation="vertical"
             aria-label="Redimensionner le panneau"
             tabindex="0"
-            class="hidden md:flex w-4 cursor-col-resize items-center justify-center group flex-shrink-0 select-none px-0.5"
+            class="hidden md:flex w-2 cursor-col-resize items-center justify-center group flex-shrink-0 select-none px-0.5 hover:bg-blue-500/10 active:bg-blue-600/20 rounded transition-colors"
           >
-            <div class="w-1.5 h-16 bg-gray-300/80 rounded-full group-hover:bg-blue-500 group-active:bg-blue-600 transition-colors flex items-center justify-center">
-              ${icons.gripVertical({ size: 12, className: 'text-white opacity-0 group-hover:opacity-100 transition-opacity' })}
+            <div class="w-1 h-12 bg-slate-300 rounded-full group-hover:bg-blue-500 group-active:bg-blue-600 transition-colors flex items-center justify-center">
+              ${icons.gripVertical({ size: 10, className: 'text-white opacity-0 group-hover:opacity-100 transition-opacity' })}
             </div>
           </div>
         ` : ''}
@@ -725,7 +726,7 @@ export function renderMainLayout(
         <!-- Zone 3: Integrated Preview Side Panel -->
         <div
           id="preview-panel-container"
-          class="${isPanelVisible ? 'flex' : 'hidden'} flex-col min-w-[300px] ${isPanelVisible ? 'w-full md:w-auto' : ''} mt-4 md:mt-0 flex-1 h-full overflow-hidden"
+          class="${isPanelVisible ? 'flex' : 'hidden'} flex-col min-w-[300px] ${isPanelVisible ? 'w-full md:w-auto' : ''} flex-1 h-full overflow-hidden"
           style="${isPanelVisible ? `width: ${panelWidth}px; flex: 1 1 ${panelWidth}px;` : ''}"
         >
           ${renderPreviewPanel(selectedItem, previewState, objectUrl)}
