@@ -192,13 +192,14 @@ export async function readFilePreview(file) {
     }
 
     try {
-      const mammoth = await import('mammoth');
-      const result = await mammoth.extractRawText({
-        arrayBuffer: await file.arrayBuffer(),
-      });
+      const arrayBuffer = await file.arrayBuffer();
+      const uint8 = new Uint8Array(arrayBuffer);
+      if (uint8.length < 4 || uint8[0] !== 0x50 || uint8[1] !== 0x4b) {
+        return { kind: 'word-error' };
+      }
       return {
-        kind: 'word',
-        content: result.value.trim() || '(empty document)',
+        kind: 'word-docx',
+        arrayBuffer,
       };
     } catch {
       return { kind: 'word-error' };

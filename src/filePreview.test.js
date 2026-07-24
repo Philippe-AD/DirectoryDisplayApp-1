@@ -71,7 +71,7 @@ describe('file previews', () => {
     expect(getMimeType('unknown.xyz')).toBe('');
   });
 
-  it('returns dedicated previews for image, audio, video, PDF, legacy Word documents, and handles corrupted docx files', async () => {
+  it('returns dedicated previews for image, audio, video, PDF, legacy Word documents, docx files, and handles corrupted docx files', async () => {
     await expect(readFilePreview(new File(['img'], 'photo.png', { type: 'image/png' }))).resolves.toEqual({
       kind: 'image',
     });
@@ -90,6 +90,11 @@ describe('file previews', () => {
     await expect(readFilePreview(new File(['not a real zip/docx content'], 'corrupted.docx'))).resolves.toEqual({
       kind: 'word-error',
     });
+
+    const validZipHeader = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+    const docxResult = await readFilePreview(new File([validZipHeader], 'document.docx'));
+    expect(docxResult.kind).toBe('word-docx');
+    expect(docxResult.arrayBuffer).toBeDefined();
   });
 
   it('returns null for binary files', async () => {

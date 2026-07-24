@@ -181,4 +181,16 @@ describe('renderers & UI layout', () => {
     expect(htmlCollapsed).toContain('Agrandir');
     expect(htmlCollapsed).toContain('py-2.5');
   });
+
+  it('renders word-docx preview container element for docx files', () => {
+    const docxItem = { path: '/Project/document.docx', name: 'document.docx', type: 'file', size: 15000 };
+    const html = renderPreviewPanel(
+      docxItem,
+      { status: 'word-docx', preview: { kind: 'word-docx', arrayBuffer: new ArrayBuffer(8) } },
+      null
+    );
+
+    expect(html).toContain('Aperçu Document Word (.docx)');
+    expect(html).toContain('id="docx-preview-container"');
+  });
 });

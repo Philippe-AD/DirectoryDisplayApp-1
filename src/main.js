@@ -102,9 +102,36 @@ function render() {
   bindMainEvents();
   attachGlobalKeyboardListener();
 
+  if (state.previewState?.preview?.kind === 'word-docx') {
+    const docxContainer = document.getElementById('docx-preview-container');
+    if (docxContainer && state.previewState.preview.arrayBuffer) {
+      renderDocxPreview(state.previewState.preview.arrayBuffer, docxContainer);
+    }
+  }
+
   const newFileListEl = document.getElementById('file-list');
   if (newFileListEl && previousScrollTop > 0) {
     newFileListEl.scrollTop = previousScrollTop;
+  }
+}
+
+async function renderDocxPreview(arrayBuffer, container) {
+  try {
+    const docx = await import('docx-preview');
+    container.innerHTML = '';
+    await docx.renderAsync(arrayBuffer, container, null, {
+      inWrapper: true,
+      ignoreWidth: false,
+      ignoreHeight: false,
+      experimental: true,
+    });
+  } catch (err) {
+    console.error('Failed to render DOCX preview:', err);
+    container.innerHTML = `
+      <div class="p-4 rounded-xl bg-red-50 text-xs text-red-700">
+        Impossible d'afficher la mise en page du document Word.
+      </div>
+    `;
   }
 }
 

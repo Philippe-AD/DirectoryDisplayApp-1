@@ -298,6 +298,22 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
         </object>
       </div>
     `;
+  } else if (preview.kind === 'word-docx') {
+    previewBodyHtml = `
+      <div class="mt-4 flex-1 flex flex-col min-h-0">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          Aperçu Document Word (.docx)
+        </p>
+        <div
+          id="docx-preview-container"
+          class="w-full h-[52vh] overflow-auto rounded-2xl border border-gray-200 bg-slate-100 p-2 shadow-inner"
+        >
+          <div class="flex items-center justify-center h-full text-xs text-gray-400">
+            Chargement de la mise en page Word...
+          </div>
+        </div>
+      </div>
+    `;
   } else if (preview.kind === 'text' || preview.kind === 'word') {
     const content = preview.content ?? '';
     const syntaxLang = preview.kind === 'text' ? getSyntaxLanguage(selectedItem.name) ?? 'markup' : 'markup';

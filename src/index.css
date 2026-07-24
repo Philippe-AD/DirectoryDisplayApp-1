@@ -1,3 +1,19 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Styles pour la prévisualisation de documents Word (docx-preview) */
+.docx-wrapper {
+  background: transparent !important;
+  padding: 8px !important;
+}
+
+.docx-wrapper > section.docx {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+  margin: 0 auto 16px auto !important;
+  background-color: white !important;
+  border-radius: 8px !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
