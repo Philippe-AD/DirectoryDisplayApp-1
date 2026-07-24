@@ -14,7 +14,9 @@
     "build:electron-main": "tsc -p tsconfig.electron.json",
     "electron:dev": "tsc -p tsconfig.electron.json && concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:preview": "tsc -p tsconfig.electron.json && vite build && electron .",
-    "electron:build": "tsc -p tsconfig.electron.json && vite build && electron-builder"
+    "electron:build": "tsc -p tsconfig.electron.json && vite build && electron-builder",
+    "zip": "node zip-project.js",
+    "release": "node zip-project.js"
   },
   "build": {
     "appId": "com.directorydisplay.app",

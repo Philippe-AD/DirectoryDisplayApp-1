@@ -10,8 +10,11 @@ node_modules
 dist
 dist-electron
 release
+releases
+.tmp
 dist-ssr
 *.local
+*.zip
 
 .vscode/*
 !.vscode/extensions.json
