@@ -6,9 +6,6 @@ import {
   getElectronFile,
 } from './fileSystem';
 import {
-  isImageFile,
-  isPdfFile,
-  isWordFile,
   isTextFile,
   readFilePreview,
   MAX_TEXT_PREVIEW_BYTES,
@@ -17,7 +14,6 @@ import {
   renderWelcomeScreen,
   renderFallbackUploadScreen,
   renderMainLayout,
-  renderPreviewModal,
 } from './renderers';
 
 const state = {
@@ -29,6 +25,9 @@ const state = {
   loading: false,
   error: null,
   selectedItem: null,
+  previewState: { status: 'idle', preview: null },
+  isPreviewPanelVisible: true,
+  panelWidth: 380,
   fallbackItems: [],
   usingFallback: false,
   objectUrl: null,
@@ -36,7 +35,8 @@ const state = {
 
 let handleMap = new Map();
 let loadRequestId = 0;
-let previouslyFocusedElement = null;
+let previewRequestId = 0;
+let isKeyboardListenerAttached = false;
 
 function getAppElement() {
   let el = document.getElementById('app');
@@ -77,7 +77,10 @@ function render() {
   const displayName = currentCrumb ? currentCrumb.name : 'Files';
   const currentPath = currentCrumb ? currentCrumb.path : '';
 
-  let html = renderMainLayout(
+  const fileListEl = document.getElementById('file-list');
+  const previousScrollTop = fileListEl ? fileListEl.scrollTop : 0;
+
+  const html = renderMainLayout(
     displayName,
     currentPath,
     state.crumbs,
@@ -85,22 +88,21 @@ function render() {
     state.loading,
     state.search,
     state.usingFallback,
-    state.error
+    state.error,
+    state.selectedItem,
+    state.previewState,
+    state.objectUrl,
+    state.isPreviewPanelVisible,
+    state.panelWidth
   );
-
-  if (state.selectedItem) {
-    html += renderPreviewModal(
-      state.selectedItem.item,
-      state.selectedItem.preview,
-      state.objectUrl
-    );
-  }
 
   root.innerHTML = html;
   bindMainEvents();
+  attachGlobalKeyboardListener();
 
-  if (state.selectedItem) {
-    setupModalFocusTrap();
+  const newFileListEl = document.getElementById('file-list');
+  if (newFileListEl && previousScrollTop > 0) {
+    newFileListEl.scrollTop = previousScrollTop;
   }
 }
 
@@ -135,6 +137,11 @@ function bindMainEvents() {
     render();
   });
 
+  document.getElementById('btn-toggle-panel')?.addEventListener('click', () => {
+    state.isPreviewPanelVisible = !state.isPreviewPanelVisible;
+    render();
+  });
+
   document.querySelectorAll('.btn-crumb').forEach((btn) => {
     btn.addEventListener('click', () => {
       const index = parseInt(btn.dataset.crumbIndex || '0', 10);
@@ -144,11 +151,6 @@ function bindMainEvents() {
 
   const searchInput = document.getElementById('input-search');
   if (searchInput) {
-    searchInput.focus();
-    // Maintain cursor position at end of input
-    const len = searchInput.value.length;
-    searchInput.setSelectionRange(len, len);
-
     searchInput.addEventListener('input', (e) => {
       onSearch(e.target.value);
     });
@@ -159,12 +161,23 @@ function bindMainEvents() {
   });
 
   document.querySelectorAll('.btn-file-card').forEach((card) => {
-    card.addEventListener('click', () => {
+    card.addEventListener('click', (e) => {
+      e.stopPropagation();
       const path = card.dataset.itemPath;
       if (!path) return;
       const item = state.filtered.find((i) => i.path === path);
       if (item) {
-        handleItemClick(item);
+        handleItemSingleClick(item);
+      }
+    });
+
+    card.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      const path = card.dataset.itemPath;
+      if (!path) return;
+      const item = state.filtered.find((i) => i.path === path);
+      if (item) {
+        handleItemDoubleClick(item);
       }
     });
   });
@@ -178,66 +191,195 @@ function bindMainEvents() {
     state.filtered = [];
     state.fallbackItems = [];
     state.usingFallback = false;
-    closePreviewModal();
+    state.selectedItem = null;
+    state.previewState = { status: 'idle', preview: null };
+    updateObjectUrl(null);
     handleMap.clear();
     render();
   });
 
-  document.getElementById('btn-close-modal')?.addEventListener('click', closePreviewModal);
-  document.getElementById('modal-overlay')?.addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) {
-      closePreviewModal();
+  setupResizer();
+}
+
+function setupResizer() {
+  const resizer = document.getElementById('resizer');
+  const previewPanelContainer = document.getElementById('preview-panel-container');
+  if (!resizer || !previewPanelContainer) return;
+
+  let startX = 0;
+  let startWidth = state.panelWidth;
+
+  const onMouseMove = (e) => {
+    const delta = startX - e.clientX;
+    const minWidth = 250;
+    const maxWidth = Math.max(minWidth, window.innerWidth - 300);
+    const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + delta));
+    state.panelWidth = newWidth;
+    previewPanelContainer.style.width = `${newWidth}px`;
+  };
+
+  const onMouseUp = () => {
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+  };
+
+  resizer.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    startX = e.clientX;
+    startWidth = state.panelWidth;
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  });
+}
+
+function attachGlobalKeyboardListener() {
+  if (isKeyboardListenerAttached) return;
+  isKeyboardListenerAttached = true;
+
+  window.addEventListener('keydown', (e) => {
+    const activeTag = document.activeElement ? document.activeElement.tagName.toUpperCase() : '';
+    if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || document.activeElement?.isContentEditable) {
+      return;
+    }
+
+    if (state.filtered.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const currentIndex = state.selectedItem
+        ? state.filtered.findIndex((i) => i.path === state.selectedItem.path)
+        : -1;
+      const nextIndex = currentIndex < 0 ? 0 : Math.min(state.filtered.length - 1, currentIndex + 1);
+      const nextItem = state.filtered[nextIndex];
+      if (nextItem) {
+        handleItemSingleClick(nextItem);
+        scrollToSelectedItem();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const currentIndex = state.selectedItem
+        ? state.filtered.findIndex((i) => i.path === state.selectedItem.path)
+        : -1;
+      const prevIndex = currentIndex < 0 ? 0 : Math.max(0, currentIndex - 1);
+      const prevItem = state.filtered[prevIndex];
+      if (prevItem) {
+        handleItemSingleClick(prevItem);
+        scrollToSelectedItem();
+      }
+    } else if (e.key === 'Enter') {
+      if (state.selectedItem) {
+        e.preventDefault();
+        handleItemDoubleClick(state.selectedItem);
+      }
     }
   });
 }
 
-function setupModalFocusTrap() {
-  previouslyFocusedElement = document.activeElement;
-  const closeBtn = document.getElementById('btn-close-modal');
-  closeBtn?.focus();
+function scrollToSelectedItem() {
+  const selectedEl = document.querySelector('[aria-selected="true"]');
+  selectedEl?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
 
-  const handleKeyDown = (e) => {
-    if (!state.selectedItem) return;
+async function handleItemSingleClick(item) {
+  state.selectedItem = item;
 
-    if (e.key === 'Escape') {
-      closePreviewModal();
-      document.removeEventListener('keydown', handleKeyDown);
-    } else if (e.key === 'Tab') {
-      const dialog = document.getElementById('modal-dialog');
-      if (!dialog) return;
+  if (item.type === 'directory') {
+    state.previewState = { status: 'folder', preview: null };
+    updateObjectUrl(null);
+    render();
+    return;
+  }
 
-      const focusables = dialog.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      if (focusables.length === 0) return;
+  const currentReqId = ++previewRequestId;
+  state.previewState = { status: 'loading', preview: null };
+  render();
 
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
+  try {
+    let file = null;
 
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
+    if (state.usingFallback) {
+      file = item.file || null;
+    } else if (isElectron()) {
+      const isText = isTextFile({ name: item.name, type: '' });
+      const options = isText ? { maxBytes: MAX_TEXT_PREVIEW_BYTES } : undefined;
+      file = await getElectronFile(item.path, item.name, options);
+    } else {
+      const handle = handleMap.get(item.path);
+      if (handle && handle.kind === 'file') {
+        file = await handle.getFile();
+      }
+    }
+
+    if (currentReqId !== previewRequestId) return;
+
+    if (!file) {
+      state.previewState = { status: 'unsupported', preview: null };
+      updateObjectUrl(null);
+      render();
+      return;
+    }
+
+    const preview = await readFilePreview(file);
+    if (currentReqId !== previewRequestId) return;
+
+    updateObjectUrl(file);
+    state.previewState = { status: preview.kind, preview };
+  } catch {
+    if (currentReqId !== previewRequestId) return;
+    state.previewState = { status: 'error', preview: null };
+    updateObjectUrl(null);
+  }
+
+  render();
+}
+
+async function handleItemDoubleClick(item) {
+  if (item.type === 'directory') {
+    state.selectedItem = null;
+    state.previewState = { status: 'idle', preview: null };
+    updateObjectUrl(null);
+
+    if (state.usingFallback) {
+      const subItems = fallbackVirtualFs.get(item.path) || [];
+      state.crumbs.push({ name: item.name, path: item.path, handle: null });
+      state.items = subItems;
+      state.filtered = subItems;
+      state.search = '';
+      render();
+    } else if (isElectron()) {
+      const dirHandle = {
+        kind: 'electron-directory',
+        name: item.name,
+        path: item.path,
+      };
+      const previousCrumbs = [...state.crumbs];
+      state.crumbs.push({ name: item.name, path: item.path, handle: dirHandle });
+      state.search = '';
+      try {
+        await loadDirectory(dirHandle, item.path);
+      } catch (err) {
+        state.crumbs = previousCrumbs;
+        state.error = err instanceof Error ? err.message : `Impossible d'accéder au dossier "${item.name}".`;
+        render();
+      }
+    } else {
+      const handle = handleMap.get(item.path);
+      if (handle && handle.kind === 'directory') {
+        const dirHandle = handle;
+        const previousCrumbs = [...state.crumbs];
+        state.crumbs.push({ name: item.name, path: item.path, handle: dirHandle });
+        state.search = '';
+        try {
+          await loadDirectory(dirHandle, item.path);
+        } catch {
+          state.crumbs = previousCrumbs;
+          state.error = `Impossible d'accéder au dossier système "${item.name}". Accès restreint par le navigateur.`;
+          render();
         }
       }
     }
-  };
-
-  document.addEventListener('keydown', handleKeyDown);
-}
-
-function closePreviewModal() {
-  state.selectedItem = null;
-  updateObjectUrl(null);
-  render();
-  if (previouslyFocusedElement) {
-    previouslyFocusedElement.focus();
-    previouslyFocusedElement = null;
+  } else {
+    handleItemSingleClick(item);
   }
 }
 
@@ -245,6 +387,9 @@ async function loadDirectory(dir, path) {
   const requestId = ++loadRequestId;
   state.loading = true;
   state.error = null;
+  state.selectedItem = null;
+  state.previewState = { status: 'idle', preview: null };
+  updateObjectUrl(null);
   render();
 
   try {
@@ -380,6 +525,9 @@ function handleFallbackFiles(fileList) {
   state.crumbs = [{ name: rootFolderName, path: rootPath, handle: null }];
   state.search = '';
   state.error = null;
+  state.selectedItem = null;
+  state.previewState = { status: 'idle', preview: null };
+  updateObjectUrl(null);
 
   const currentItems = fallbackVirtualFs.get(rootPath) || fallbackAllFiles;
   state.fallbackItems = currentItems;
@@ -388,109 +536,13 @@ function handleFallbackFiles(fileList) {
   render();
 }
 
-async function openFilePreviewModal(item, file) {
-  try {
-    const preview = await readFilePreview(file);
-    updateObjectUrl(file);
-    state.selectedItem = { item, file, preview };
-  } catch {
-    const preview = isImageFile(file)
-      ? { kind: 'image' }
-      : isPdfFile(file)
-        ? { kind: 'pdf' }
-        : isWordFile(file)
-          ? { kind: 'word-error' }
-          : { kind: 'unsupported' };
-    updateObjectUrl(file);
-    state.selectedItem = { item, file, preview };
-  }
-  render();
-}
-
-async function handleItemClick(item) {
-  if (state.usingFallback) {
-    if (item.type === 'directory') {
-      const subItems = fallbackVirtualFs.get(item.path) || [];
-      state.crumbs.push({ name: item.name, path: item.path, handle: null });
-      state.items = subItems;
-      state.filtered = subItems;
-      state.search = '';
-      render();
-    } else if (item.file) {
-      await openFilePreviewModal(item, item.file);
-    } else {
-      state.selectedItem = { item, file: null, preview: { kind: 'unsupported' } };
-      render();
-    }
-  } else if (isElectron()) {
-    if (item.type === 'directory') {
-      const dirHandle = {
-        kind: 'electron-directory',
-        name: item.name,
-        path: item.path,
-      };
-      const previousCrumbs = [...state.crumbs];
-      state.crumbs.push({ name: item.name, path: item.path, handle: dirHandle });
-      state.search = '';
-      try {
-        await loadDirectory(dirHandle, item.path);
-      } catch (err) {
-        state.crumbs = previousCrumbs;
-        state.error = err instanceof Error ? err.message : `Impossible d'accéder au dossier "${item.name}".`;
-        render();
-      }
-    } else {
-      try {
-        const isText = isTextFile({ name: item.name, type: '' });
-        const options = isText ? { maxBytes: MAX_TEXT_PREVIEW_BYTES } : undefined;
-        const file = await getElectronFile(item.path, item.name, options);
-        if (file) {
-          await openFilePreviewModal(item, file);
-        } else {
-          state.selectedItem = { item, file: null, preview: { kind: 'unsupported' } };
-          render();
-        }
-      } catch {
-        state.selectedItem = { item, file: null, preview: { kind: 'unsupported' } };
-        render();
-      }
-    }
-  } else if (item.type === 'directory') {
-    const handle = handleMap.get(item.path);
-    if (handle && handle.kind === 'directory') {
-      const dirHandle = handle;
-      const previousCrumbs = [...state.crumbs];
-      state.crumbs.push({ name: item.name, path: item.path, handle: dirHandle });
-      state.search = '';
-      try {
-        await loadDirectory(dirHandle, item.path);
-      } catch (err) {
-        state.crumbs = previousCrumbs;
-        state.error = `Impossible d'accéder au dossier système "${item.name}". Accès restreint par le navigateur.`;
-        render();
-      }
-    }
-  } else {
-    const handle = handleMap.get(item.path);
-    if (handle && handle.kind === 'file') {
-      try {
-        const file = await handle.getFile();
-        await openFilePreviewModal(item, file);
-      } catch {
-        state.selectedItem = { item, file: null, preview: { kind: 'unsupported' } };
-        render();
-      }
-    } else {
-      state.selectedItem = { item, file: null, preview: { kind: 'unsupported' } };
-      render();
-    }
-  }
-}
-
 async function navigateToCrumb(index) {
   const crumb = state.crumbs[index];
   state.crumbs = state.crumbs.slice(0, index + 1);
   state.search = '';
+  state.selectedItem = null;
+  state.previewState = { status: 'idle', preview: null };
+  updateObjectUrl(null);
   if (state.usingFallback) {
     const subItems = fallbackVirtualFs.get(crumb.path) || fallbackAllFiles;
     state.items = subItems;
@@ -513,6 +565,9 @@ async function goBack() {
     state.filtered = [];
     state.fallbackItems = [];
     state.usingFallback = false;
+    state.selectedItem = null;
+    state.previewState = { status: 'idle', preview: null };
+    updateObjectUrl(null);
     render();
   }
 }

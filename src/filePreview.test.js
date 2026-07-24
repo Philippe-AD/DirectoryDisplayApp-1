@@ -10,7 +10,7 @@ import {
   readFilePreview,
   readTextPreview,
 } from './filePreview';
-import { renderPreviewModal } from './renderers';
+import { renderPreviewPanel } from './renderers';
 
 describe('file previews', () => {
   it('recognizes image files by MIME type or extension', () => {
@@ -114,7 +114,7 @@ describe('file previews', () => {
     expect(preview?.totalSize).toBe(10 * 1024 * 1024);
   });
 
-  it('renders truncation notice with total file size in preview modal', () => {
+  it('renders truncation notice with total file size in preview panel', () => {
     const item = { path: '/logs/app.log', name: 'app.log', type: 'file', size: 49073356 };
     const preview = {
       kind: 'text',
@@ -123,11 +123,24 @@ describe('file previews', () => {
       totalSize: 49073356,
     };
 
-    const html = renderPreviewModal(item, preview, null);
+    const html = renderPreviewPanel(item, { status: 'text', preview }, null);
 
     expect(html).toContain('Aperçu limité au premier mégaoctet');
     expect(html).toContain('taille totale : 46.8 MB');
     expect(html).toContain('id="preview-truncated-warning"');
+  });
+
+  it('renders empty selection state, loading state, folder state, and error states explicitly in panel', () => {
+    expect(renderPreviewPanel(null)).toContain('Aucun fichier sélectionné');
+
+    const folderItem = { path: '/docs', name: 'docs', type: 'directory' };
+    expect(renderPreviewPanel(folderItem, { status: 'folder' })).toContain('Dossier de fichiers');
+
+    const fileItem = { path: '/file.txt', name: 'file.txt', type: 'file' };
+    expect(renderPreviewPanel(fileItem, { status: 'loading' })).toContain('Chargement de la prévisualisation...');
+
+    expect(renderPreviewPanel(fileItem, { status: 'error' })).toContain('Erreur de lecture');
+    expect(renderPreviewPanel(fileItem, { status: 'unsupported' })).toContain('Format non pris en charge');
   });
 
   it('handles read errors gracefully without throwing', async () => {

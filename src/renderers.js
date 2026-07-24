@@ -13,7 +13,7 @@ export const COLOR_PALETTE = [
 ];
 
 export function getColorForPath(path) {
-  const hash = path.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const hash = (path || '/').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
   return COLOR_PALETTE[hash % COLOR_PALETTE.length];
 }
 
@@ -26,6 +26,7 @@ export function formatFileSize(bytes) {
 }
 
 export function getFileExtension(name) {
+  if (!name) return 'FILE';
   const parts = name.split('.');
   return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : 'FILE';
 }
@@ -120,7 +121,7 @@ export function renderFallbackUploadScreen() {
   `;
 }
 
-export function renderFileCard(item) {
+export function renderFileCard(item, isSelected = false) {
   const color = getColorForPath(item.path);
   const isDocument = item.type === 'file' && (/\.(pdf|docx?)$/i.test(item.name));
   const isImage = item.type === 'file' && (item.file ? isImageFile(item.file) : /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif|tiff|apng)$/i.test(item.name));
@@ -132,25 +133,215 @@ export function renderFileCard(item) {
         ? icons.fileText({ size: 20, className: color.text })
         : icons.file({ size: 20, className: color.text });
 
+  const selectedClasses = isSelected
+    ? 'ring-2 ring-blue-500 bg-blue-50/70 border-blue-300 shadow-sm'
+    : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-md';
+
   return `
     <button
+      role="option"
+      aria-selected="${isSelected ? 'true' : 'false'}"
       data-item-path="${escapeHtml(item.path)}"
-      class="btn-file-card group w-full text-left bg-white rounded-2xl border border-gray-100 p-5 hover:border-gray-200 hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+      data-item-type="${escapeHtml(item.type)}"
+      class="btn-file-card group w-full text-left rounded-2xl border p-4 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 ${selectedClasses}"
     >
-      <div class="flex items-start gap-4">
-        <div class="p-3 rounded-lg ${color.light} group-hover:scale-110 transition-transform">
+      <div class="flex items-center gap-3.5">
+        <div class="p-2.5 rounded-xl ${color.light} group-hover:scale-105 transition-transform flex-shrink-0">
           ${icon}
         </div>
         <div class="flex-1 min-w-0">
-          <p class="font-semibold text-gray-900 truncate">${escapeHtml(item.name)}</p>
-          <p class="text-sm text-gray-500 mt-0.5">
-            ${item.type === 'directory' ? 'Folder' : getFileExtension(item.name)}
+          <p class="font-semibold text-gray-900 text-sm truncate">${escapeHtml(item.name)}</p>
+          <p class="text-xs text-gray-500 mt-0.5">
+            ${item.type === 'directory' ? 'Dossier' : getFileExtension(item.name)}
             ${item.size !== undefined ? ` • ${formatFileSize(item.size)}` : ''}
           </p>
         </div>
-        ${icons.chevronRight({ size: 16, className: 'text-gray-300 group-hover:text-gray-400 mt-1 flex-shrink-0 transition-colors' })}
+        ${icons.chevronRight({ size: 16, className: 'text-gray-300 group-hover:text-gray-400 flex-shrink-0 transition-colors' })}
       </div>
     </button>
+  `;
+}
+
+export function renderPreviewPanel(selectedItem, previewState = { status: 'idle' }, objectUrl = null) {
+  if (!selectedItem) {
+    return `
+      <div id="preview-panel" class="h-full flex flex-col items-center justify-center text-center p-8 bg-white rounded-3xl border border-gray-200/80 shadow-sm">
+        <div class="p-4 bg-gray-50 rounded-2xl mb-4 text-gray-400">
+          ${icons.file({ size: 36 })}
+        </div>
+        <p class="font-semibold text-gray-700 text-base">Aucun fichier sélectionné</p>
+        <p class="text-xs text-gray-400 mt-1.5 max-w-xs">Cliquez sur un fichier dans la liste pour afficher sa prévisualisation immédiate.</p>
+      </div>
+    `;
+  }
+
+  if (selectedItem.type === 'directory' || previewState.status === 'folder') {
+    const color = getColorForPath(selectedItem.path);
+    return `
+      <div id="preview-panel" class="h-full flex flex-col p-6 bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-y-auto">
+        <div class="flex items-center gap-3.5 pb-4 border-b border-gray-100">
+          <div class="p-3.5 rounded-2xl ${color.light} ${color.text}">
+            ${icons.folderOpen({ size: 28 })}
+          </div>
+          <div class="min-w-0 flex-1">
+            <h3 class="font-bold text-gray-900 text-lg truncate">${escapeHtml(selectedItem.name)}</h3>
+            <span class="inline-block text-xs font-semibold uppercase tracking-wider text-blue-600 px-2 py-0.5 rounded bg-blue-50">Dossier</span>
+          </div>
+        </div>
+
+        <div class="mt-6 space-y-3">
+          <div class="flex items-center justify-between p-3.5 rounded-2xl bg-gray-50 text-sm">
+            <span class="text-gray-500 font-medium">Type</span>
+            <span class="font-semibold text-gray-900">Dossier de fichiers</span>
+          </div>
+          <div class="flex flex-col gap-1 p-3.5 rounded-2xl bg-gray-50 text-sm">
+            <span class="text-gray-500 font-medium">Chemin d'accès</span>
+            <span class="font-mono text-xs text-gray-800 break-all">${escapeHtml(selectedItem.path)}</span>
+          </div>
+        </div>
+
+        <div class="mt-8 p-4 rounded-2xl bg-blue-50/70 border border-blue-100 text-xs text-blue-900 flex items-start gap-2.5">
+          ${icons.folder({ size: 18, className: 'text-blue-600 flex-shrink-0 mt-0.5' })}
+          <span>Double-cliquez sur ce dossier dans la liste pour y naviguer.</span>
+        </div>
+      </div>
+    `;
+  }
+
+  if (previewState.status === 'loading') {
+    return `
+      <div id="preview-panel" class="h-full flex flex-col items-center justify-center text-center p-8 bg-white rounded-3xl border border-gray-200/80 shadow-sm">
+        <div class="animate-spin text-blue-600 mb-4">
+          ${icons.loader({ size: 36 })}
+        </div>
+        <p class="font-semibold text-gray-800 text-sm">Chargement de la prévisualisation...</p>
+        <p class="text-xs text-gray-400 mt-1 truncate max-w-xs">${escapeHtml(selectedItem.name)}</p>
+      </div>
+    `;
+  }
+
+  const color = getColorForPath(selectedItem.path);
+  const preview = previewState.preview || {};
+
+  let previewBodyHtml = '';
+
+  if (preview.kind === 'image' && objectUrl) {
+    previewBodyHtml = `
+      <div class="mt-4">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Aperçu image</p>
+        <div class="flex items-center justify-center p-4 bg-gray-100 rounded-2xl border border-gray-200 overflow-hidden max-h-[50vh]">
+          <img
+            src="${objectUrl}"
+            alt="${escapeHtml(selectedItem.name)}"
+            class="max-w-full max-h-[45vh] object-contain rounded-xl shadow-sm"
+          />
+        </div>
+      </div>
+    `;
+  } else if (preview.kind === 'pdf' && objectUrl) {
+    previewBodyHtml = `
+      <div class="mt-4">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Aperçu PDF</p>
+        <iframe
+          src="${objectUrl}"
+          title="Prévisualisation PDF de ${escapeHtml(selectedItem.name)}"
+          class="w-full h-[50vh] rounded-2xl border border-gray-200 bg-gray-50"
+        ></iframe>
+      </div>
+    `;
+  } else if (preview.kind === 'text' || preview.kind === 'word') {
+    const content = preview.content ?? '';
+    const syntaxLang = preview.kind === 'text' ? getSyntaxLanguage(selectedItem.name) ?? 'markup' : 'markup';
+    const highlightedCode = highlightCode(content || '(fichier vide)', syntaxLang);
+    const isTruncated = preview.kind === 'text' && Boolean(preview.truncated);
+    const totalSize = preview.totalSize ?? selectedItem.size;
+
+    previewBodyHtml = `
+      <div class="mt-4">
+        ${isTruncated ? `
+          <div class="mb-3 p-3 rounded-2xl bg-amber-50 border border-amber-200/80 text-xs font-medium text-amber-900 flex items-center gap-2 shadow-sm" id="preview-truncated-warning">
+            ${icons.alertCircle({ size: 18, className: 'text-amber-600 flex-shrink-0' })}
+            <span>Aperçu limité au premier mégaoctet — taille totale : ${formatFileSize(totalSize)}</span>
+          </div>
+        ` : ''}
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          ${preview.kind === 'word' ? 'Aperçu Document Word' : 'Aperçu contenu'}
+        </p>
+        <pre
+          class="text-xs rounded-2xl p-4 max-h-[50vh] overflow-auto bg-gray-900 text-gray-100 font-mono leading-relaxed shadow-inner"
+          aria-label="Source code preview for ${escapeHtml(selectedItem.name)}"
+        ><code>${highlightedCode}</code></pre>
+      </div>
+    `;
+  } else if (preview.kind === 'unsupported-word' || previewState.status === 'unsupported-word') {
+    previewBodyHtml = `
+      <div class="mt-4 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
+        ${icons.alertCircle({ size: 18, className: 'text-amber-600 flex-shrink-0 mt-0.5' })}
+        <div>
+          <p class="font-semibold">Format Word hérité (.doc)</p>
+          <p class="mt-1 text-amber-800">Les fichiers .doc ne peuvent pas être prévisualisés directement. Téléchargez le fichier pour l'ouvrir dans Microsoft Word.</p>
+        </div>
+      </div>
+    `;
+  } else if (preview.kind === 'word-error' || previewState.status === 'word-error' || previewState.status === 'error') {
+    previewBodyHtml = `
+      <div class="mt-4 p-4 rounded-2xl bg-red-50 border border-red-200 text-xs text-red-900 flex items-start gap-2.5">
+        ${icons.alertCircle({ size: 18, className: 'text-red-600 flex-shrink-0 mt-0.5' })}
+        <div>
+          <p class="font-semibold">Erreur de lecture</p>
+          <p class="mt-1 text-red-800">Impossible de lire le contenu de ce fichier. Il est peut-être corrompu ou protégé.</p>
+        </div>
+      </div>
+    `;
+  } else {
+    previewBodyHtml = `
+      <div class="mt-4 p-4 rounded-2xl bg-gray-100 border border-gray-200 text-xs text-gray-600 flex items-start gap-2.5">
+        ${icons.alertCircle({ size: 18, className: 'text-gray-400 flex-shrink-0 mt-0.5' })}
+        <div>
+          <p class="font-semibold">Format non pris en charge</p>
+          <p class="mt-1 text-gray-500">Aucun aperçu disponible dans l'application pour ce type de fichier.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div id="preview-panel" class="h-full flex flex-col p-6 bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-y-auto">
+      <div class="flex items-start gap-3.5 pb-4 border-b border-gray-100">
+        <div class="p-3 rounded-2xl ${color.light} ${color.text} flex-shrink-0">
+          ${icons.fileText({ size: 24 })}
+        </div>
+        <div class="min-w-0 flex-1">
+          <h3 class="font-bold text-gray-900 text-base truncate">${escapeHtml(selectedItem.name)}</h3>
+          <p class="text-xs text-gray-500 mt-0.5">
+            ${getFileExtension(selectedItem.name)}
+            ${selectedItem.size !== undefined ? ` • ${formatFileSize(selectedItem.size)}` : ''}
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-4 space-y-2">
+        <div class="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 text-xs">
+          <span class="text-gray-500 font-medium">Chemin</span>
+          <span class="font-mono text-gray-800 truncate max-w-[180px]">${escapeHtml(selectedItem.path)}</span>
+        </div>
+      </div>
+
+      ${previewBodyHtml}
+
+      ${objectUrl ? `
+        <div class="mt-6 pt-4 border-t border-gray-100">
+          <a
+            href="${objectUrl}"
+            download="${escapeHtml(selectedItem.name)}"
+            class="inline-flex items-center justify-center gap-2 w-full rounded-2xl bg-blue-600 px-4 py-3 text-xs font-semibold text-white hover:bg-blue-700 transition-colors shadow-md shadow-blue-600/20"
+          >
+            ${icons.download({ size: 16 })}
+            Télécharger le fichier
+          </a>
+        </div>
+      ` : ''}
+    </div>
   `;
 }
 
@@ -162,12 +353,18 @@ export function renderMainLayout(
   loading,
   search,
   usingFallback,
-  error = null
+  error = null,
+  selectedItem = null,
+  previewState = { status: 'idle' },
+  objectUrl = null,
+  isPanelVisible = true,
+  panelWidth = 380
 ) {
   const color = getColorForPath(currentPath || '/files');
+  const selectedPath = selectedItem ? selectedItem.path : null;
 
   const crumbsHtml = crumbs.length > 1 ? `
-    <div class="flex items-center flex-wrap gap-1 mt-4 text-white/70 text-xs">
+    <div class="flex items-center flex-wrap gap-1 mt-3 text-white/80 text-xs">
       ${crumbs.map((crumb, i) => `
         <span class="flex items-center gap-1">
           ${i > 0 ? icons.chevronRight({ size: 12, className: 'text-white/50' }) : ''}
@@ -187,10 +384,10 @@ export function renderMainLayout(
   if (loading) {
     contentHtml = `
       <div class="space-y-3">
-        ${[1, 2, 3].map(() => `
-          <div class="bg-white rounded-2xl border border-gray-100 p-5 animate-pulse">
+        ${[1, 2, 3, 4].map(() => `
+          <div class="bg-white rounded-2xl border border-gray-100 p-4 animate-pulse">
             <div class="flex gap-4">
-              <div class="w-10 h-10 rounded-lg bg-gray-200"></div>
+              <div class="w-10 h-10 rounded-xl bg-gray-200"></div>
               <div class="flex-1 space-y-2 pt-1">
                 <div class="h-4 bg-gray-200 rounded w-2/3"></div>
                 <div class="h-3 bg-gray-100 rounded w-1/2"></div>
@@ -202,242 +399,139 @@ export function renderMainLayout(
     `;
   } else if (items.length === 0) {
     contentHtml = `
-      <div class="text-center py-16 text-gray-400">
+      <div class="text-center py-16 text-gray-400 bg-white rounded-3xl border border-gray-200/80">
         ${icons.folder({ size: 40, className: 'mx-auto mb-3 opacity-30' })}
-        <p class="font-medium">No files or folders found</p>
-        ${search ? '<p class="text-sm mt-1">Try a different search.</p>' : ''}
+        <p class="font-medium text-sm">Aucun fichier ou dossier trouvé</p>
+        ${search ? '<p class="text-xs mt-1 text-gray-400">Essayez une recherche différente.</p>' : ''}
       </div>
     `;
   } else {
     contentHtml = `
-      <div class="space-y-3 pb-10">
-        <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest px-1 mb-4">
-          ${items.length} ${items.length === 1 ? 'item' : 'items'}
+      <div class="space-y-2 pb-6" role="listbox" aria-label="Fichiers et dossiers">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest px-1 mb-2">
+          ${items.length} ${items.length === 1 ? 'élément' : 'éléments'}
         </p>
-        ${items.map(item => renderFileCard(item)).join('')}
+        ${items.map(item => renderFileCard(item, item.path === selectedPath)).join('')}
       </div>
     `;
   }
 
   return `
-    <div class="min-h-screen bg-gray-50">
-      <div class="${color.bg} px-4 pt-10 pb-20">
-        ${crumbs.length > 1 ? `
-          <button
-            id="btn-go-back"
-            class="flex items-center gap-2 text-white/80 hover:text-white text-sm font-medium mb-6 transition-colors"
-          >
-            ${icons.arrowLeft({ size: 16 })}
-            Back
-          </button>
-        ` : ''}
-        <div class="flex items-center gap-3">
-          <div class="p-3 bg-white/20 rounded-2xl">
-            ${icons.folder({ size: 28, className: 'text-white' })}
-          </div>
-          <div class="min-w-0">
-            <h1 class="text-2xl font-bold text-white truncate">${escapeHtml(displayName)}</h1>
-            <p class="text-white/70 text-sm mt-0.5 truncate">${escapeHtml(currentPath)}</p>
-          </div>
-        </div>
-        ${crumbsHtml}
-      </div>
-
-      <div class="max-w-2xl mx-auto px-4 -mt-12">
-        <div class="relative mb-6">
-          <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-            ${icons.search({ size: 18 })}
-          </div>
-          <input
-            type="text"
-            id="input-search"
-            placeholder="Search files..."
-            value="${escapeHtml(search)}"
-            class="w-full pl-11 pr-10 py-3.5 bg-white rounded-2xl border border-gray-100 shadow-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
-          />
-          ${search ? `
-            <button id="btn-clear-search" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-              ${icons.x({ size: 16 })}
-            </button>
-          ` : ''}
-        </div>
-
-        ${error ? `
-          <div class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start justify-between gap-3 shadow-sm">
-            <div class="flex items-start gap-3">
-              ${icons.alertCircle({ size: 20, className: 'text-amber-600 flex-shrink-0 mt-0.5' })}
-              <p class="text-sm text-amber-900 font-medium">${escapeHtml(error)}</p>
-            </div>
-            <button id="btn-dismiss-error" aria-label="Fermer l'alerte" class="text-amber-700 hover:text-amber-900 text-xs font-semibold underline flex-shrink-0">
-              OK
-            </button>
-          </div>
-        ` : ''}
-
-        ${contentHtml}
-      </div>
-
-      ${!usingFallback ? `
-        <div class="fixed bottom-6 right-6">
-          <button
-            id="btn-open-another"
-            class="flex items-center gap-2 bg-white border border-gray-200 shadow-lg rounded-full pl-4 pr-5 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            ${icons.folderTree({ size: 18, className: 'text-blue-600' })}
-            Open another folder
-          </button>
-        </div>
-      ` : ''}
-    </div>
-  `;
-}
-
-export function renderPreviewModal(
-  item,
-  preview,
-  objectUrl
-) {
-  const color = getColorForPath(item.path);
-  const titleId = `file-preview-${item.path.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
-  const content = preview.kind === 'text' || preview.kind === 'word' ? preview.content : null;
-
-  let previewBodyHtml = '';
-
-  if (preview.kind === 'image' && objectUrl) {
-    previewBodyHtml = `
-      <div class="mt-4">
-        <p class="text-sm font-semibold text-gray-900 mb-2">Image preview</p>
-        <div class="flex items-center justify-center p-4 bg-gray-100 rounded-2xl border border-gray-200 overflow-hidden min-h-[200px] max-h-[60vh]">
-          <img
-            src="${objectUrl}"
-            alt="${escapeHtml(item.name)}"
-            class="max-w-full max-h-[55vh] object-contain rounded-xl shadow-sm"
-          />
-        </div>
-      </div>
-    `;
-  } else if (preview.kind === 'pdf' && objectUrl) {
-    previewBodyHtml = `
-      <div class="mt-4">
-        <p class="text-sm font-semibold text-gray-900 mb-2">PDF preview</p>
-        <iframe
-          src="${objectUrl}"
-          title="PDF preview for ${escapeHtml(item.name)}"
-          class="w-full h-[60vh] rounded-xl border border-gray-200 bg-gray-50"
-        ></iframe>
-      </div>
-    `;
-  } else if (content !== null) {
-    const syntaxLang = preview.kind === 'text' ? getSyntaxLanguage(item.name) ?? 'markup' : 'markup';
-    const highlightedCode = highlightCode(content || '(empty file)', syntaxLang);
-
-    const isTruncated = preview.kind === 'text' && Boolean(preview.truncated);
-    const totalSize = preview.totalSize ?? item.size;
-
-    previewBodyHtml = `
-      <div class="mt-4">
-        ${isTruncated ? `
-          <div class="mb-3 p-3.5 rounded-2xl bg-amber-50 border border-amber-200/60 text-xs font-medium text-amber-900 flex items-center gap-2.5 shadow-sm" id="preview-truncated-warning">
-            ${icons.alertCircle({ size: 18, className: 'text-amber-600 flex-shrink-0' })}
-            <span>Aperçu limité au premier mégaoctet — taille totale : ${formatFileSize(totalSize)}</span>
-          </div>
-        ` : ''}
-        <p class="text-sm font-semibold text-gray-900 mb-2">
-          ${preview.kind === 'word' ? 'Word document preview' : 'Preview'}
-        </p>
-        <pre
-          class="text-xs rounded-xl p-4 max-h-96 overflow-auto bg-gray-900 text-gray-100 font-mono"
-          aria-label="Source code preview for ${escapeHtml(item.name)}"
-        ><code>${highlightedCode}</code></pre>
-      </div>
-    `;
-  } else if (preview.kind === 'unsupported-word') {
-    previewBodyHtml = `
-      <div class="mt-4 p-4 rounded-xl bg-amber-50 text-sm text-amber-800">
-        Legacy .doc files cannot be previewed in the browser. You can download the file and open it in Word.
-      </div>
-    `;
-  } else if (preview.kind === 'word-error') {
-    previewBodyHtml = `
-      <div class="mt-4 p-4 rounded-xl bg-red-50 text-sm text-red-800 flex items-center gap-2">
-        ${icons.alertCircle({ size: 18, className: 'text-red-600 flex-shrink-0' })}
-        <span>Could not read this Word document. The file may be corrupted or protected.</span>
-      </div>
-    `;
-  } else if (preview.kind === 'unsupported') {
-    previewBodyHtml = `
-      <div class="mt-4 p-4 rounded-xl bg-gray-50 text-sm text-gray-600">
-        No browser preview is available for this file type.
-      </div>
-    `;
-  }
-
-  const isImage = preview.kind === 'image' || (item.type === 'file' && (item.file ? isImageFile(item.file) : /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif|tiff|apng)$/i.test(item.name)));
-  const modalIcon = isImage
-    ? icons.image({ size: 28, className: color.text })
-    : icons.file({ size: 28, className: color.text });
-
-  return `
-    <div
-      id="modal-overlay"
-      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-    >
-      <div
-        id="modal-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="${titleId}"
-        class="bg-white rounded-3xl shadow-2xl w-full max-h-[90vh] overflow-y-auto ${
-          preview.kind === 'pdf' || preview.kind === 'image' || content !== null ? 'max-w-4xl' : 'max-w-md'
-        }"
-      >
-        <div class="${color.bg} px-6 pt-8 pb-16 relative">
-          <button
-            id="btn-close-modal"
-            aria-label="Close file preview"
-            class="absolute top-4 right-4 p-2 rounded-full bg-white/20 hover:bg-white/30 transition-colors text-white"
-          >
-            ${icons.x({ size: 18 })}
-          </button>
-        </div>
-        <div class="px-6 pb-8 -mt-10">
-          <div class="flex items-end gap-4 mb-4">
-            <div class="p-4 rounded-2xl ${color.light}">
-              ${modalIcon}
-            </div>
-          </div>
-          <h2 id="${titleId}" class="text-2xl font-bold text-gray-900">${escapeHtml(item.name)}</h2>
-          <p class="text-gray-500 mt-1">File</p>
-
-          <div class="mt-6 space-y-3">
-            <div class="flex items-center justify-between p-3 rounded-xl bg-gray-50">
-              <span class="text-sm text-gray-600">Type</span>
-              <span class="text-sm font-semibold text-gray-900">${escapeHtml(getFileExtension(item.name))}</span>
-            </div>
-            <div class="flex items-center justify-between p-3 rounded-xl bg-gray-50">
-              <span class="text-sm text-gray-600">Path</span>
-              <span class="text-sm font-semibold text-gray-900 truncate max-w-[200px]">${escapeHtml(item.path)}</span>
-            </div>
-            ${item.size !== undefined ? `
-              <div class="flex items-center justify-between p-3 rounded-xl bg-gray-50">
-                <span class="text-sm text-gray-600">Size</span>
-                <span class="text-sm font-semibold text-gray-900">${formatFileSize(item.size)}</span>
-              </div>
-            ` : ''}
-
-            ${previewBodyHtml}
-
-            ${objectUrl ? `
-              <a
-                href="${objectUrl}"
-                download="${escapeHtml(item.name)}"
-                class="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+    <div class="min-h-screen bg-gray-50 flex flex-col">
+      <!-- Header Bar -->
+      <div class="${color.bg} px-6 pt-6 pb-10 shadow-sm transition-colors">
+        <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            ${crumbs.length > 1 ? `
+              <button
+                id="btn-go-back"
+                class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors"
               >
-                ${icons.download({ size: 16 })}
-                Download file
-              </a>
+                ${icons.arrowLeft({ size: 14 })}
+                Retour
+              </button>
+            ` : ''}
+            <div class="p-2.5 bg-white/20 rounded-2xl text-white">
+              ${icons.folder({ size: 24 })}
+            </div>
+            <div class="min-w-0">
+              <h1 class="text-xl font-bold text-white truncate">${escapeHtml(displayName)}</h1>
+              <p class="text-white/70 text-xs truncate max-w-md">${escapeHtml(currentPath)}</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              id="btn-toggle-panel"
+              class="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+              aria-label="${isPanelVisible ? 'Masquer le panneau de prévisualisation' : 'Afficher le panneau de prévisualisation'}"
+              title="${isPanelVisible ? 'Masquer le panneau' : 'Afficher le panneau'}"
+            >
+              ${isPanelVisible ? icons.eyeOff({ size: 16 }) : icons.eye({ size: 16 })}
+              <span class="hidden sm:inline">${isPanelVisible ? 'Masquer panneau' : 'Afficher panneau'}</span>
+            </button>
+
+            ${!usingFallback ? `
+              <button
+                id="btn-open-another"
+                class="flex items-center gap-2 bg-white text-gray-800 hover:bg-gray-100 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors shadow-sm"
+              >
+                ${icons.folderTree({ size: 16, className: 'text-blue-600' })}
+                <span class="hidden sm:inline">Changer de dossier</span>
+              </button>
             ` : ''}
           </div>
+        </div>
+
+        <div class="max-w-7xl mx-auto">
+          ${crumbsHtml}
+        </div>
+      </div>
+
+      <!-- Main Layout Content -->
+      <div class="flex-1 max-w-7xl w-full mx-auto px-4 -mt-5 pb-8 flex flex-col md:flex-row gap-0 overflow-hidden">
+        <!-- Zone 1: File Navigation & List -->
+        <div id="file-list-container" class="flex-1 flex flex-col min-w-[260px] overflow-hidden pr-0 md:pr-1">
+          <!-- Search input -->
+          <div class="relative mb-3">
+            <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+              ${icons.search({ size: 18 })}
+            </div>
+            <input
+              type="text"
+              id="input-search"
+              placeholder="Rechercher un fichier..."
+              value="${escapeHtml(search)}"
+              class="w-full pl-11 pr-10 py-3 bg-white rounded-2xl border border-gray-200/80 shadow-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            />
+            ${search ? `
+              <button id="btn-clear-search" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                ${icons.x({ size: 16 })}
+              </button>
+            ` : ''}
+          </div>
+
+          ${error ? `
+            <div class="mb-3 p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start justify-between gap-3 shadow-sm">
+              <div class="flex items-start gap-2.5">
+                ${icons.alertCircle({ size: 18, className: 'text-amber-600 flex-shrink-0 mt-0.5' })}
+                <p class="text-xs text-amber-900 font-medium">${escapeHtml(error)}</p>
+              </div>
+              <button id="btn-dismiss-error" aria-label="Fermer l'alerte" class="text-amber-700 hover:text-amber-900 text-xs font-semibold underline flex-shrink-0">
+                OK
+              </button>
+            </div>
+          ` : ''}
+
+          <!-- File List -->
+          <div id="file-list" class="flex-1 overflow-y-auto pr-1 min-h-[300px]">
+            ${contentHtml}
+          </div>
+        </div>
+
+        <!-- Zone 2: Draggable Resizer Separator -->
+        ${isPanelVisible ? `
+          <div
+            id="resizer"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Redimensionner le panneau"
+            tabindex="0"
+            class="hidden md:flex w-4 cursor-col-resize items-center justify-center group flex-shrink-0 select-none px-0.5"
+          >
+            <div class="w-1.5 h-16 bg-gray-300/80 rounded-full group-hover:bg-blue-500 group-active:bg-blue-600 transition-colors flex items-center justify-center">
+              ${icons.gripVertical({ size: 12, className: 'text-white opacity-0 group-hover:opacity-100 transition-opacity' })}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Zone 3: Integrated Preview Side Panel -->
+        <div
+          id="preview-panel-container"
+          class="${isPanelVisible ? 'flex' : 'hidden'} flex-col min-w-[260px] ${isPanelVisible ? 'w-full md:w-auto' : ''} mt-4 md:mt-0 flex-shrink-0"
+          style="${isPanelVisible ? `width: ${panelWidth}px;` : ''}"
+        >
+          ${renderPreviewPanel(selectedItem, previewState, objectUrl)}
         </div>
       </div>
     </div>
@@ -454,6 +548,7 @@ function highlightCode(code, lang) {
 }
 
 function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
