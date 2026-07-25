@@ -67,6 +67,247 @@ export function renderExternalOpenModal() {
   `;
 }
 
+export function renderRenameInputModal(modalState, theme = 'dark') {
+  if (!modalState || !modalState.item) return '';
+  const { item, newName = '', validationError = null, extensionWarning = null, parentPath = '' } = modalState;
+  const isDir = item.type === 'directory';
+  const itemTypeLabel = isDir ? 'dossier' : 'fichier';
+  const isLight = theme === 'light';
+
+  return `
+    <div
+      id="modal-rename-input-overlay"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-rename-title"
+    >
+      <div class="${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#181528] text-slate-100 border-purple-500/30'} border rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+        <div class="flex items-center gap-3">
+          <div class="p-2.5 ${isLight ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-purple-600/20 text-purple-300 border-purple-500/30'} border rounded-xl flex-shrink-0">
+            ${icons.edit({ size: 22 })}
+          </div>
+          <div>
+            <h2 id="modal-rename-title" class="text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}">
+              Renommer ce ${itemTypeLabel}
+            </h2>
+            <p class="text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}">
+              Modifiez le nom de l'élément de manière volontaire et sécurisée.
+            </p>
+          </div>
+        </div>
+
+        <div class="p-3 ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-slate-800'} border rounded-xl space-y-2 text-xs">
+          <div>
+            <span class="text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}">Nom actuel :</span>
+            <p class="font-mono font-semibold ${isLight ? 'text-slate-800' : 'text-purple-300'} break-all mt-0.5" id="rename-modal-current-name">${escapeHtml(item.name)}</p>
+          </div>
+          <div>
+            <span class="text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}">Emplacement actuel :</span>
+            <p class="font-mono text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'} break-all mt-0.5" id="rename-modal-current-location">${escapeHtml(parentPath || item.path)}</p>
+          </div>
+        </div>
+
+        <div class="space-y-1.5">
+          <label for="input-rename-name" class="block text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}">
+            Nouveau nom :
+          </label>
+          <input
+            type="text"
+            id="input-rename-name"
+            value="${escapeHtml(newName)}"
+            class="w-full px-3.5 py-2 text-xs font-mono rounded-xl border ${validationError ? 'border-red-500 focus:ring-red-500' : (isLight ? 'border-slate-300 bg-white text-slate-900 focus:ring-purple-500' : 'border-slate-700 bg-slate-900 text-slate-100 focus:ring-purple-500')} focus:outline-none focus:ring-2 shadow-inner"
+            placeholder="Saisissez le nouveau nom..."
+            aria-describedby="${validationError ? 'rename-validation-error' : 'rename-consequences-text'}"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          ${validationError ? `
+            <p id="rename-validation-error" class="text-[11px] text-red-500 font-medium flex items-center gap-1 mt-1">
+              ${icons.alertCircle({ size: 13, className: 'flex-shrink-0' })}
+              <span>${escapeHtml(validationError)}</span>
+            </p>
+          ` : ''}
+        </div>
+
+        ${extensionWarning ? `
+          <div id="rename-extension-warning" class="p-3 bg-amber-500/15 border border-amber-500/40 rounded-xl text-amber-300 text-xs flex items-start gap-2.5">
+            ${icons.alertCircle({ size: 16, className: 'text-amber-400 flex-shrink-0 mt-0.5' })}
+            <div class="text-[11px] leading-relaxed">
+              <span class="font-bold">Avertissement modification d'extension :</span>
+              <p class="mt-0.5">${escapeHtml(extensionWarning)}</p>
+            </div>
+          </div>
+        ` : ''}
+
+        <div id="rename-consequences-text" class="p-3 ${isLight ? 'bg-purple-50 border-purple-200 text-purple-900' : 'bg-purple-950/40 border-purple-500/30 text-purple-200'} border rounded-xl text-xs space-y-1">
+          <p class="font-medium">• Le ${itemTypeLabel} restera dans le même dossier.</p>
+          <p class="font-medium">• Son contenu ne sera pas modifié.</p>
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}">
+          <button
+            id="btn-rename-modal-cancel"
+            type="button"
+            class="px-4 py-2 rounded-xl text-xs font-medium ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'} transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+          >
+            Annuler
+          </button>
+          <button
+            id="btn-rename-modal-submit"
+            type="button"
+            ${validationError ? 'disabled' : ''}
+            class="px-4 py-2 rounded-xl text-xs font-medium ${validationError ? 'bg-purple-400/40 text-purple-200/50 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500 text-white shadow-md focus:outline-none focus:ring-2 focus:ring-purple-400'} transition-all"
+          >
+            Renommer
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderRenameConfirmModal(modalState, theme = 'dark') {
+  if (!modalState || !modalState.item) return '';
+  const { item, newName = '', parentPath = '' } = modalState;
+  const isDir = item.type === 'directory';
+  const itemTypeLabel = isDir ? 'dossier' : 'fichier';
+  const isLight = theme === 'light';
+
+  return `
+    <div
+      id="modal-rename-confirm-overlay"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-confirm-title"
+    >
+      <div class="${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#181528] text-slate-100 border-purple-500/30'} border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div class="flex items-center gap-3 text-purple-400">
+          <div class="p-2.5 ${isLight ? 'bg-purple-100 text-purple-700' : 'bg-purple-600/20 text-purple-300'} border border-purple-500/30 rounded-xl flex-shrink-0">
+            ${icons.edit({ size: 22 })}
+          </div>
+          <h2 id="modal-confirm-title" class="text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}">
+            Confirmation du renommage
+          </h2>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <p class="font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}">Vous allez renommer :</p>
+          <div class="p-2.5 rounded-xl font-mono ${isLight ? 'bg-slate-100 text-purple-800 border-slate-300' : 'bg-slate-900 text-purple-300 border-slate-800'} border break-all font-semibold" id="confirm-old-name">
+            ${escapeHtml(item.name)}
+          </div>
+
+          <p class="font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}">en :</p>
+          <div class="p-2.5 rounded-xl font-mono ${isLight ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-slate-900 text-emerald-300 border-slate-800'} border break-all font-semibold" id="confirm-new-name">
+            ${escapeHtml(newName)}
+          </div>
+
+          <p class="font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}">Emplacement :</p>
+          <div class="p-2.5 rounded-xl font-mono text-[11px] ${isLight ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-900 text-slate-400 border-slate-800'} border break-all" id="confirm-location">
+            ${escapeHtml(parentPath || item.path)}
+          </div>
+
+          <p class="text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'} pt-1">
+            Le ${itemTypeLabel} restera dans ce dossier et son contenu ne sera pas modifié.
+          </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}">
+          <button
+            id="btn-rename-confirm-back"
+            type="button"
+            class="px-4 py-2 rounded-xl text-xs font-medium ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'} transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+          >
+            Retour
+          </button>
+          <button
+            id="btn-rename-confirm-execute"
+            type="button"
+            class="px-4 py-2 rounded-xl text-xs font-medium bg-purple-600 hover:bg-purple-500 text-white shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400"
+          >
+            Confirmer le renommage
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderUndoToast(undoToastState, theme = 'dark') {
+  if (!undoToastState || !undoToastState.visible) return '';
+  const isLight = theme === 'light';
+
+  return `
+    <div
+      id="undo-rename-toast"
+      role="status"
+      aria-live="polite"
+      class="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 ${isLight ? 'bg-slate-900 text-slate-100 shadow-2xl border border-slate-700' : 'bg-[#181528] text-slate-100 shadow-2xl border border-purple-500/40'} rounded-2xl text-xs"
+    >
+      <div class="p-1 bg-emerald-500/20 text-emerald-400 rounded-lg flex-shrink-0">
+        ${icons.refreshCw({ size: 16 })}
+      </div>
+      <span class="font-medium">${escapeHtml(undoToastState.message || 'Le fichier a été renommé.')}</span>
+      <div class="flex items-center gap-2 ml-2">
+        <button
+          id="btn-undo-rename"
+          type="button"
+          class="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400 text-xs"
+        >
+          Annuler le renommage
+        </button>
+        <button
+          id="btn-dismiss-undo-toast"
+          type="button"
+          aria-label="Fermer la notification"
+          class="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"
+        >
+          ${icons.x({ size: 14 })}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+export function renderRenameErrorModal(errorMessage, theme = 'dark') {
+  if (!errorMessage) return '';
+  const isLight = theme === 'light';
+
+  return `
+    <div
+      id="modal-rename-error-overlay"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-error-title"
+    >
+      <div class="${isLight ? 'bg-white text-slate-900 border-red-200' : 'bg-[#181528] text-slate-100 border-red-500/40'} border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div class="flex items-center gap-3 text-red-500">
+          <div class="p-2.5 bg-red-500/20 border border-red-500/40 rounded-xl flex-shrink-0">
+            ${icons.alertCircle({ size: 22 })}
+          </div>
+          <h2 id="modal-error-title" class="text-sm font-bold text-red-500">Erreur de renommage</h2>
+        </div>
+
+        <p class="text-xs ${isLight ? 'text-slate-700' : 'text-slate-300'} leading-relaxed" id="rename-error-message-text">
+          ${escapeHtml(errorMessage)}
+        </p>
+
+        <div class="flex items-center justify-end pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}">
+          <button
+            id="btn-rename-error-dismiss"
+            type="button"
+            class="px-4 py-2 rounded-xl text-xs font-medium bg-red-600 hover:bg-red-500 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
+          >
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export function renderMainLayout(
   displayName,
   currentPath,
@@ -83,7 +324,10 @@ export function renderMainLayout(
   isHeaderCollapsed = false,
   isTreeVisible = true,
   showExternalOpenModal = false,
-  theme = 'dark'
+  theme = 'dark',
+  renameModalState = null,
+  undoToastState = null,
+  renameErrorMessage = null
 ) {
   const selectedPath = selectedItem ? selectedItem.path : null;
   const isLight = theme === 'light';
@@ -110,11 +354,11 @@ export function renderMainLayout(
       id="consultation-mode-indicator"
       role="status"
       aria-live="polite"
-      aria-label="Mode consultation — aucun fichier ne peut être modifié"
+      aria-label="Mode protégé — aucune modification sans confirmation"
       class="flex items-center gap-1.5 px-3 py-1 ${isLight ? 'bg-emerald-50 text-emerald-700 border border-emerald-300' : 'bg-emerald-950/70 text-emerald-300 border border-emerald-500/40'} rounded-full text-xs font-medium select-none shadow-2xs flex-shrink-0"
     >
       ${icons.lock({ size: 13, className: isLight ? 'text-emerald-600 flex-shrink-0' : 'text-emerald-400 flex-shrink-0' })}
-      <span class="truncate">Mode consultation — aucun fichier ne peut être modifié</span>
+      <span class="truncate">Mode protégé — aucune modification sans confirmation</span>
     </div>
   `;
 
@@ -399,6 +643,10 @@ export function renderMainLayout(
       </div>
 
       ${showExternalOpenModal ? renderExternalOpenModal() : ''}
+      ${renameModalState?.isOpen && renameModalState.step === 'input' ? renderRenameInputModal(renameModalState, theme) : ''}
+      ${renameModalState?.isOpen && renameModalState.step === 'confirm' ? renderRenameConfirmModal(renameModalState, theme) : ''}
+      ${undoToastState?.visible ? renderUndoToast(undoToastState, theme) : ''}
+      ${renameErrorMessage ? renderRenameErrorModal(renameErrorMessage, theme) : ''}
     </div>
   `;
 }

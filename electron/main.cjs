@@ -107,6 +107,53 @@ ipcMain.handle('fs:readDirectory', async (_event, dirPath) => {
   }
 });
 
+ipcMain.handle('fs:renameEntry', async (_event, oldPath, newPath) => {
+  if (!oldPath || !newPath) {
+    return { success: false, error: 'Chemin d\'accès invalide.', code: 'INVALID_PATH' };
+  }
+  try {
+    try {
+      await fs.promises.access(oldPath);
+    } catch {
+      return {
+        success: false,
+        error: 'Élément introuvable. Il a peut-être été supprimé ou déplacé. Aucune autre modification n\'a été effectuée.',
+        code: 'ENOENT',
+      };
+    }
+
+    const parentDir = path.dirname(newPath);
+    try {
+      await fs.promises.access(parentDir);
+    } catch {
+      return {
+        success: false,
+        error: 'Le dossier parent n\'est pas accessible. Aucune autre modification n\'a été effectuée.',
+        code: 'EACCES',
+      };
+    }
+
+    await fs.promises.rename(oldPath, newPath);
+    return { success: true };
+  } catch (err) {
+    let errorMsg = 'Impossible de renommer l\'élément.';
+    if (err.code === 'ENOENT') {
+      errorMsg = 'Élément introuvable.';
+    } else if (err.code === 'EACCES' || err.code === 'EPERM') {
+      errorMsg = 'Accès refusé.';
+    } else if (err.code === 'EBUSY') {
+      errorMsg = 'Le fichier est utilisé par une autre application.';
+    } else if (err.code === 'EEXIST') {
+      errorMsg = 'Un fichier ou dossier portant ce nom existe déjà.';
+    }
+    return {
+      success: false,
+      error: `${errorMsg} Aucune autre modification n'a été effectuée.`,
+      code: err.code || 'UNKNOWN',
+    };
+  }
+});
+
 ipcMain.handle('fs:readFileBuffer', async (_event, filePath, options) => {
   const maxBytes = typeof options === 'number' ? options : options?.maxBytes;
   let fileHandle = null;

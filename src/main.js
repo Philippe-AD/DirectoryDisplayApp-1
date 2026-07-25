@@ -5,6 +5,7 @@ import {
   isElectron,
   getElectronFile,
   openExternalFile,
+  renameFileOrDirectory,
 } from './fileSystem';
 import {
   isTextFile,
@@ -20,6 +21,11 @@ import {
   sortNodePaths,
   getVisibleTreeNodes,
 } from './treeLogic';
+import {
+  validateRename,
+  isExtensionModified,
+  splitFileName,
+} from './renameValidation';
 
 export { sortNodePaths, getVisibleTreeNodes };
 
@@ -44,6 +50,30 @@ const state = {
   skipExternalOpenWarning: false,
   pendingExternalOpenPath: null,
   theme: 'light',
+  renameModal: {
+    isOpen: false,
+    step: 'input', // 'input' | 'confirm'
+    item: null,
+    newName: '',
+    parentPath: '',
+    parentChildrenNames: [],
+    validationError: null,
+    extensionWarning: null,
+  },
+  undoState: {
+    available: false,
+    itemType: 'file',
+    oldPath: '',
+    newPath: '',
+    oldName: '',
+    newName: '',
+    parentPath: '',
+  },
+  undoToast: {
+    visible: false,
+    message: '',
+  },
+  renameErrorMessage: null,
 };
 
 let previewRequestId = 0;
@@ -123,7 +153,10 @@ function render() {
     state.isHeaderCollapsed,
     state.isTreeVisible,
     state.showExternalOpenModal,
-    state.theme
+    state.theme,
+    state.renameModal,
+    state.undoToast,
+    state.renameErrorMessage
   );
 
   root.innerHTML = html;
@@ -184,6 +217,297 @@ function bindFallbackUploadEvents() {
     state.error = null;
     render();
   });
+}
+
+export function openRenameModal(item = state.selectedItem) {
+  if (!item) return;
+
+  let parentPath = item.parentPath || '';
+  if (!parentPath && item.path) {
+    const parts = item.path.split(/[/\\]/).filter(Boolean);
+    if (parts.length > 1) {
+      parts.pop();
+      parentPath = item.path.startsWith('/') ? '/' + parts.join('/') : parts.join('/');
+    }
+  }
+
+  let parentChildrenNames = [];
+  if (parentPath && state.nodes.has(parentPath)) {
+    const parentNode = state.nodes.get(parentPath);
+    parentChildrenNames = (parentNode.childrenPaths || [])
+      .map((cp) => state.nodes.get(cp)?.name)
+      .filter(Boolean);
+  } else {
+    parentChildrenNames = Array.from(state.nodes.values())
+      .filter((n) => n.parentPath === parentPath)
+      .map((n) => n.name);
+  }
+
+  state.renameModal = {
+    isOpen: true,
+    step: 'input',
+    item,
+    newName: item.name,
+    parentPath,
+    parentChildrenNames,
+    validationError: null,
+    extensionWarning: null,
+  };
+
+  validateCurrentRenameInput();
+  render();
+
+  setTimeout(() => {
+    const inputEl = document.getElementById('input-rename-name');
+    if (inputEl) {
+      inputEl.focus();
+      if (item.type !== 'directory') {
+        const { baseName } = splitFileName(item.name);
+        if (baseName && baseName.length > 0) {
+          inputEl.setSelectionRange(0, baseName.length);
+        } else {
+          inputEl.select();
+        }
+      } else {
+        inputEl.select();
+      }
+    }
+  }, 50);
+}
+
+export function validateCurrentRenameInput() {
+  if (!state.renameModal.isOpen || !state.renameModal.item) return;
+
+  const item = state.renameModal.item;
+  const newName = state.renameModal.newName;
+
+  const valRes = validateRename({
+    currentName: item.name,
+    newName,
+    isDirectory: item.type === 'directory',
+    parentChildrenNames: state.renameModal.parentChildrenNames || [],
+    parentPath: state.renameModal.parentPath,
+    maxPathLength: 260,
+  });
+
+  const extRes = isExtensionModified(item.name, newName, item.type === 'directory');
+
+  state.renameModal.validationError = valRes.isValid ? null : valRes.error;
+  if (extRes.isModified) {
+    state.renameModal.extensionWarning = `Vous modifiez l’extension ${extRes.oldExt || 'du fichier'}. Le fichier pourrait ne plus s’ouvrir correctement.`;
+  } else {
+    state.renameModal.extensionWarning = null;
+  }
+}
+
+export function closeRenameModal() {
+  state.renameModal = {
+    isOpen: false,
+    step: 'input',
+    item: null,
+    newName: '',
+    parentPath: '',
+    parentChildrenNames: [],
+    validationError: null,
+    extensionWarning: null,
+  };
+  render();
+}
+
+export function submitRenameInputStep() {
+  validateCurrentRenameInput();
+  if (state.renameModal.validationError) {
+    return;
+  }
+  state.renameModal.step = 'confirm';
+  render();
+}
+
+export async function executeRename() {
+  if (!state.renameModal.item || state.renameModal.validationError) return;
+
+  const item = state.renameModal.item;
+  const oldPath = item.path;
+  const newName = state.renameModal.newName.trim();
+  const parentPath = state.renameModal.parentPath;
+
+  const normalizedParent = parentPath.replace(/\\/g, '/').replace(/\/+$/, '');
+  const newPath = parentPath ? `${normalizedParent}/${newName}` : `/${newName}`;
+
+  const res = await renameFileOrDirectory(oldPath, newPath);
+
+  if (!res.success) {
+    console.error('Failed to rename element:', res.error);
+    state.renameErrorMessage = res.error || "Impossible de renommer l'élément. Aucune autre modification n'a été effectuée.";
+    state.renameModal.isOpen = false;
+    render();
+    return;
+  }
+
+  const oldName = item.name;
+  const targetNode = state.nodes.get(oldPath) || item;
+  state.nodes.delete(oldPath);
+  targetNode.name = newName;
+  targetNode.path = newPath;
+  if (targetNode.file) {
+    targetNode.file = new File([targetNode.file], newName, { type: targetNode.file.type });
+  }
+  state.nodes.set(newPath, targetNode);
+
+  if (targetNode.parentPath && state.nodes.has(targetNode.parentPath)) {
+    const parentNode = state.nodes.get(targetNode.parentPath);
+    if (Array.isArray(parentNode.childrenPaths)) {
+      parentNode.childrenPaths = parentNode.childrenPaths.map((cp) => (cp === oldPath ? newPath : cp));
+      parentNode.childrenPaths = sortNodePaths(parentNode.childrenPaths, state.nodes);
+    }
+  }
+
+  if (targetNode.type === 'directory') {
+    const oldPrefix = oldPath + '/';
+    const newPrefix = newPath + '/';
+    const entriesToUpdate = [];
+
+    for (const [pathKey, node] of state.nodes.entries()) {
+      if (pathKey.startsWith(oldPrefix)) {
+        entriesToUpdate.push({ oldKey: pathKey, node });
+      }
+    }
+
+    for (const { oldKey, node } of entriesToUpdate) {
+      state.nodes.delete(oldKey);
+      const updatedPath = node.path.replace(oldPrefix, newPrefix);
+      const updatedParent = node.parentPath ? node.parentPath.replace(oldPrefix, newPrefix) : newPath;
+      node.path = updatedPath;
+      node.parentPath = updatedParent;
+      if (Array.isArray(node.childrenPaths)) {
+        node.childrenPaths = node.childrenPaths.map((cp) => (cp.startsWith(oldPrefix) ? cp.replace(oldPrefix, newPrefix) : cp));
+      }
+      state.nodes.set(updatedPath, node);
+    }
+  }
+
+  if (state.treeRootPath === oldPath) {
+    state.treeRootPath = newPath;
+  }
+  if (state.rootPath === oldPath) {
+    state.rootPath = newPath;
+    state.rootName = newName;
+  }
+
+  state.selectedItem = targetNode;
+
+  state.undoState = {
+    available: true,
+    itemType: targetNode.type,
+    oldPath,
+    newPath,
+    oldName,
+    newName,
+    parentPath,
+  };
+
+  state.undoToast = {
+    visible: true,
+    message: `Le ${targetNode.type === 'directory' ? 'dossier' : 'fichier'} a été renommé.`,
+  };
+
+  state.renameModal = {
+    isOpen: false,
+    step: 'input',
+    item: null,
+    newName: '',
+    parentPath: '',
+    parentChildrenNames: [],
+    validationError: null,
+    extensionWarning: null,
+  };
+
+  render();
+}
+
+export async function handleUndoRename() {
+  if (!state.undoState || !state.undoState.available) return;
+
+  const { oldPath, newPath, oldName, parentPath, itemType } = state.undoState;
+
+  if (parentPath && state.nodes.has(parentPath)) {
+    const parentNode = state.nodes.get(parentPath);
+    const hasConflict = (parentNode.childrenPaths || []).some((cp) => {
+      const child = state.nodes.get(cp);
+      return child && child.path !== newPath && child.name.toLowerCase() === oldName.toLowerCase();
+    });
+
+    if (hasConflict) {
+      state.undoToast.visible = false;
+      state.renameErrorMessage = `Impossible d'annuler : un autre élément portant le nom '${oldName}' existe déjà dans cet emplacement. Aucune autre modification n'a été effectuée.`;
+      render();
+      return;
+    }
+  }
+
+  const res = await renameFileOrDirectory(newPath, oldPath);
+  if (!res.success) {
+    state.undoToast.visible = false;
+    state.renameErrorMessage = res.error || "Impossible d'annuler le renommage. Aucune autre modification n'a été effectuée.";
+    render();
+    return;
+  }
+
+  const targetNode = state.nodes.get(newPath);
+  if (targetNode) {
+    state.nodes.delete(newPath);
+    targetNode.name = oldName;
+    targetNode.path = oldPath;
+    state.nodes.set(oldPath, targetNode);
+
+    if (targetNode.parentPath && state.nodes.has(targetNode.parentPath)) {
+      const parentNode = state.nodes.get(targetNode.parentPath);
+      if (Array.isArray(parentNode.childrenPaths)) {
+        parentNode.childrenPaths = parentNode.childrenPaths.map((cp) => (cp === newPath ? oldPath : cp));
+        parentNode.childrenPaths = sortNodePaths(parentNode.childrenPaths, state.nodes);
+      }
+    }
+
+    if (targetNode.type === 'directory') {
+      const newPrefix = newPath + '/';
+      const oldPrefix = oldPath + '/';
+      const entriesToUpdate = [];
+
+      for (const [pathKey, node] of state.nodes.entries()) {
+        if (pathKey.startsWith(newPrefix)) {
+          entriesToUpdate.push({ newKey: pathKey, node });
+        }
+      }
+
+      for (const { newKey, node } of entriesToUpdate) {
+        state.nodes.delete(newKey);
+        const updatedPath = node.path.replace(newPrefix, oldPrefix);
+        const updatedParent = node.parentPath ? node.parentPath.replace(newPrefix, oldPrefix) : oldPath;
+        node.path = updatedPath;
+        node.parentPath = updatedParent;
+        if (Array.isArray(node.childrenPaths)) {
+          node.childrenPaths = node.childrenPaths.map((cp) => (cp.startsWith(newPrefix) ? cp.replace(newPrefix, oldPrefix) : cp));
+        }
+        state.nodes.set(updatedPath, node);
+      }
+    }
+
+    if (state.treeRootPath === newPath) state.treeRootPath = oldPath;
+    if (state.rootPath === newPath) {
+      state.rootPath = oldPath;
+      state.rootName = oldName;
+    }
+
+    state.selectedItem = targetNode;
+  }
+
+  state.undoState = { available: false };
+  state.undoToast = {
+    visible: true,
+    message: `Le renommage a été annulé. ${itemType === 'directory' ? 'Le dossier' : 'Le fichier'} a retrouvé son nom d'origine.`,
+  };
+
+  render();
 }
 
 function bindMainEvents() {
@@ -300,6 +624,62 @@ function bindMainEvents() {
     document.getElementById('btn-modal-confirm')?.addEventListener('click', confirmExternalOpen);
   }
 
+  document.getElementById('btn-trigger-rename')?.addEventListener('click', () => {
+    if (state.selectedItem) {
+      openRenameModal(state.selectedItem);
+    }
+  });
+
+  const renameInputEl = document.getElementById('input-rename-name');
+  if (renameInputEl) {
+    renameInputEl.addEventListener('input', (e) => {
+      state.renameModal.newName = e.target.value;
+      validateCurrentRenameInput();
+      const submitBtn = document.getElementById('btn-rename-modal-submit');
+      const errorEl = document.getElementById('rename-validation-error');
+
+      if (submitBtn) {
+        if (state.renameModal.validationError) {
+          submitBtn.disabled = true;
+          submitBtn.className = 'px-4 py-2 rounded-xl text-xs font-medium bg-purple-400/40 text-purple-200/50 cursor-not-allowed transition-all';
+        } else {
+          submitBtn.disabled = false;
+          submitBtn.className = 'px-4 py-2 rounded-xl text-xs font-medium bg-purple-600 hover:bg-purple-500 text-white shadow-md focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all';
+        }
+      }
+
+      if (state.renameModal.validationError) {
+        if (!errorEl) {
+          render();
+        } else {
+          const spanEl = errorEl.querySelector('span');
+          if (spanEl) spanEl.textContent = state.renameModal.validationError;
+        }
+      } else if (errorEl) {
+        render();
+      }
+    });
+  }
+
+  document.getElementById('btn-rename-modal-cancel')?.addEventListener('click', closeRenameModal);
+  document.getElementById('btn-rename-modal-submit')?.addEventListener('click', submitRenameInputStep);
+  document.getElementById('btn-rename-confirm-back')?.addEventListener('click', () => {
+    state.renameModal.step = 'input';
+    render();
+  });
+  document.getElementById('btn-rename-confirm-execute')?.addEventListener('click', executeRename);
+
+  document.getElementById('btn-undo-rename')?.addEventListener('click', handleUndoRename);
+  document.getElementById('btn-dismiss-undo-toast')?.addEventListener('click', () => {
+    state.undoToast.visible = false;
+    render();
+  });
+
+  document.getElementById('btn-rename-error-dismiss')?.addEventListener('click', () => {
+    state.renameErrorMessage = null;
+    render();
+  });
+
   setupResizer();
 }
 
@@ -380,6 +760,30 @@ function attachGlobalKeyboardListener() {
       return;
     }
 
+    if (state.renameErrorMessage) {
+      if (e.key === 'Escape' || e.key === 'Enter') {
+        e.preventDefault();
+        state.renameErrorMessage = null;
+        render();
+      }
+      return;
+    }
+
+    if (state.renameModal?.isOpen) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeRenameModal();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (state.renameModal.step === 'input') {
+          submitRenameInputStep();
+        } else if (state.renameModal.step === 'confirm') {
+          executeRename();
+        }
+      }
+      return;
+    }
+
     if (state.showExternalOpenModal) {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -387,6 +791,14 @@ function attachGlobalKeyboardListener() {
       } else if (e.key === 'Enter') {
         e.preventDefault();
         confirmExternalOpen();
+      }
+      return;
+    }
+
+    if (e.key === 'F2') {
+      if (state.selectedItem) {
+        e.preventDefault();
+        openRenameModal(state.selectedItem);
       }
       return;
     }

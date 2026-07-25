@@ -9,8 +9,8 @@ import {
   getVisibleTreeNodes,
 } from '../src/main';
 
-describe('1. Permanent Consultation Mode Indicator', () => {
-  it('renders permanent consultation indicator with lock icon and exact reassuring text', () => {
+describe('1. Permanent Protected Mode Indicator', () => {
+  it('renders permanent protected mode indicator with lock icon and exact reassuring text', () => {
     const html = renderMainLayout(
       'Project',
       '/Project',
@@ -30,9 +30,9 @@ describe('1. Permanent Consultation Mode Indicator', () => {
     );
 
     expect(html).toContain('id="consultation-mode-indicator"');
-    expect(html).toContain('Mode consultation — aucun fichier ne peut être modifié');
+    expect(html).toContain('Mode protégé — aucune modification sans confirmation');
     expect(html).toContain('role="status"');
-    expect(html).toContain('aria-label="Mode consultation — aucun fichier ne peut être modifié"');
+    expect(html).toContain('aria-label="Mode protégé — aucune modification sans confirmation"');
   });
 
   it('remains visible when header is collapsed, preview active, or tree hidden', () => {
@@ -55,23 +55,23 @@ describe('1. Permanent Consultation Mode Indicator', () => {
     );
 
     expect(htmlHiddenTree).toContain('id="consultation-mode-indicator"');
-    expect(htmlHiddenTree).toContain('Mode consultation — aucun fichier ne peut être modifié');
+    expect(htmlHiddenTree).toContain('Mode protégé — aucune modification sans confirmation');
   });
 });
 
-describe('2. Technical Protection Against File Modifications', () => {
-  it('does not include any delete, rename, or move actions in the interface', () => {
+describe('2. Technical Protection Against Unintended File Modifications', () => {
+  it('does not include any delete, copy, or move actions in the interface', () => {
     const item = { path: '/Project/file.txt', name: 'file.txt', type: 'file', size: 100 };
     const treeHtml = renderTreeNode(item, true);
     const panelHtml = renderPreviewPanel(item, { status: 'text', preview: { kind: 'text', content: 'hello' } }, 'blob:abc');
 
     expect(treeHtml.toLowerCase()).not.toContain('supprimer');
-    expect(treeHtml.toLowerCase()).not.toContain('renommer');
     expect(treeHtml.toLowerCase()).not.toContain('déplacer');
+    expect(treeHtml.toLowerCase()).not.toContain('copier');
 
     expect(panelHtml.toLowerCase()).not.toContain('supprimer');
-    expect(panelHtml.toLowerCase()).not.toContain('renommer');
     expect(panelHtml.toLowerCase()).not.toContain('déplacer');
+    expect(panelHtml.toLowerCase()).not.toContain('copier');
   });
 
   it('disables drag-and-drop on treeview items with draggable="false"', () => {

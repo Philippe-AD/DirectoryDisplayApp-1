@@ -126,3 +126,14 @@ export async function openExternalFile(filePath) {
   return { success: true };
 }
 
+export async function renameFileOrDirectory(oldPath, newPath) {
+  if (isElectron() && window.electronAPI?.renameEntry) {
+    return await window.electronAPI.renameEntry(oldPath, newPath);
+  }
+  return {
+    success: false,
+    error: "La modification du système de fichiers n'est pas prise en charge dans cet environnement. Aucune autre modification n'a été effectuée.",
+  };
+}
+
+

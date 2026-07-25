@@ -35,14 +35,27 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
   if (selectedItem.type === 'directory' || previewState.status === 'folder') {
     return `
       <div id="preview-panel" class="h-full flex flex-col p-5 bg-[#F8F9FE] rounded-2xl border border-slate-200/80 overflow-y-auto">
-        <div class="flex items-center gap-3 pb-4 border-b border-slate-200/60">
-          <div class="p-3 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-md flex-shrink-0">
-            ${icons.folderOpen({ size: 26 })}
+        <div class="flex items-center justify-between pb-4 border-b border-slate-200/60">
+          <div class="flex items-center gap-3 min-w-0 flex-1">
+            <div class="p-3 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-md flex-shrink-0">
+              ${icons.folderOpen({ size: 26 })}
+            </div>
+            <div class="min-w-0 flex-1">
+              <h3 class="font-bold text-slate-900 text-base truncate">${escapeHtml(selectedItem.name)}</h3>
+              <span class="inline-block text-[10px] font-semibold uppercase tracking-wider text-amber-800 px-2 py-0.5 rounded-full bg-amber-100 border border-amber-300/60 mt-1">Dossier de fichiers</span>
+            </div>
           </div>
-          <div class="min-w-0 flex-1">
-            <h3 class="font-bold text-slate-900 text-base truncate">${escapeHtml(selectedItem.name)}</h3>
-            <span class="inline-block text-[10px] font-semibold uppercase tracking-wider text-amber-800 px-2 py-0.5 rounded-full bg-amber-100 border border-amber-300/60 mt-1">Dossier de fichiers</span>
-          </div>
+          <button
+            id="btn-trigger-rename"
+            type="button"
+            data-item-path="${escapeHtml(selectedItem.path)}"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-[11px] font-medium text-white transition-colors shadow-2xs flex-shrink-0"
+            title="Renommer ce dossier (F2)"
+            aria-label="Renommer ce dossier"
+          >
+            ${icons.edit({ size: 14 })}
+            <span>Renommer</span>
+          </button>
         </div>
 
         <div class="mt-5 space-y-3 text-xs">
@@ -271,6 +284,18 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
         </div>
 
         <div class="flex items-center gap-2 flex-shrink-0">
+          <button
+            id="btn-trigger-rename"
+            type="button"
+            data-item-path="${escapeHtml(selectedItem.path)}"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-[11px] font-medium text-white transition-colors shadow-2xs flex-shrink-0"
+            title="Renommer ce fichier (F2)"
+            aria-label="Renommer ce fichier"
+          >
+            ${icons.edit({ size: 14 })}
+            <span class="hidden sm:inline">Renommer</span>
+          </button>
+
           <button
             id="btn-open-external"
             type="button"

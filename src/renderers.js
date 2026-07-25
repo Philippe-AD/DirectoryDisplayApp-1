@@ -24,5 +24,9 @@ export {
 
 export {
   renderExternalOpenModal,
+  renderRenameInputModal,
+  renderRenameConfirmModal,
+  renderUndoToast,
+  renderRenameErrorModal,
   renderMainLayout,
 } from './renderers/layoutRenderer';
