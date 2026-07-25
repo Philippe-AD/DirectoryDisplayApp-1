@@ -23,6 +23,7 @@ const api = {
     ipcRenderer.on('fs:moveProgress', listener);
     return () => ipcRenderer.removeListener('fs:moveProgress', listener);
   },
+  trashItem: (options) => ipcRenderer.invoke('fs:trashItem', options),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

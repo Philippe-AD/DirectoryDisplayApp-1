@@ -33,5 +33,8 @@ export {
   renderMoveWizardModal,
   renderMoveUndoToast,
   renderMoveErrorModal,
+  renderTrashConfirmModal,
+  renderTrashResultModal,
+  renderTrashErrorModal,
   renderMainLayout,
 } from './renderers/layoutRenderer';

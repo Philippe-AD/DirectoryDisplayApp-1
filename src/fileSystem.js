@@ -141,4 +141,14 @@ export function subscribeMoveProgress(callback) {
   return () => {};
 }
 
+export async function trashItemOrDirectory(targetPath, appRootDir = '') {
+  if (window.electronAPI?.trashItem) {
+    return await window.electronAPI.trashItem({ targetPath, appRootDir });
+  }
+  return {
+    success: false,
+    error: "La mise à la Corbeille n'est pas disponible dans cet environnement.",
+  };
+}
+
 

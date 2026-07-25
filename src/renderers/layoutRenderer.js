@@ -1162,6 +1162,216 @@ export function renderMoveErrorModal(moveErrorMessage, theme = 'dark') {
   `;
 }
 
+export function renderTrashConfirmModal(trashModalState, theme = 'dark') {
+  if (!trashModalState || !trashModalState.isOpen || trashModalState.step !== 'confirm' || !trashModalState.item) {
+    return '';
+  }
+
+  const { item } = trashModalState;
+  const isDir = item.type === 'directory';
+  const isLight = theme === 'light';
+  const parentPath = item.path ? item.path.substring(0, item.path.lastIndexOf('/') !== -1 ? item.path.lastIndexOf('/') : item.path.length) : '';
+
+  return `
+    <div
+      id="modal-trash-confirm-overlay"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-trash-confirm-title"
+      aria-describedby="modal-trash-confirm-consequence"
+    >
+      <div class="${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#181528] text-slate-100 border-rose-500/30'} border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div class="flex items-center gap-3 text-rose-500">
+          <div class="p-2.5 ${isLight ? 'bg-rose-100 text-rose-700' : 'bg-rose-600/20 text-rose-300'} border border-rose-500/30 rounded-xl flex-shrink-0">
+            ${icons.trash ? icons.trash({ size: 22 }) : icons.alertCircle({ size: 22 })}
+          </div>
+          <h2 id="modal-trash-confirm-title" class="text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}">
+            Mettre ce ${isDir ? 'dossier' : 'fichier'} dans la Corbeille
+          </h2>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div>
+            <span class="font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}">Élément :</span>
+            <div class="mt-1 p-2.5 rounded-xl font-mono ${isLight ? 'bg-slate-100 text-rose-800 border-slate-300' : 'bg-slate-900 text-rose-300 border-slate-800'} border break-all font-semibold" id="trash-item-name">
+              ${escapeHtml(item.name)}
+            </div>
+          </div>
+
+          <div>
+            <span class="font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}">Emplacement actuel :</span>
+            <div class="mt-1 p-2.5 rounded-xl font-mono text-[11px] ${isLight ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-900 text-slate-400 border-slate-800'} border break-all" id="trash-item-location">
+              ${escapeHtml(parentPath || item.path)}
+            </div>
+          </div>
+
+          <div id="modal-trash-confirm-consequence" class="p-3.5 rounded-xl ${isLight ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-rose-950/40 border-rose-800/60 text-rose-200'} border text-xs leading-relaxed space-y-2">
+            <p class="font-semibold text-xs flex items-center gap-2">
+              ${icons.alertCircle({ size: 16, className: 'text-rose-500 flex-shrink-0' })}
+              <span>Conséquence :</span>
+            </p>
+            <p>
+              ${isDir
+                ? 'Ce dossier et tout ce qu’il contient seront placés dans la Corbeille. Le dossier disparaîtra de son emplacement actuel, mais il ne sera pas supprimé définitivement. Il pourra normalement être restauré depuis la Corbeille Windows.'
+                : 'Le fichier disparaîtra de ce dossier, mais il ne sera pas supprimé définitivement. Il pourra normalement être restauré depuis la Corbeille Windows.'}
+            </p>
+            ${isDir ? `
+              <p class="text-[11px] opacity-90 italic">
+                Le contenu de ce dossier n’a pas été analysé. L’ensemble du dossier sera concerné.
+              </p>
+            ` : ''}
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}">
+          <button
+            id="btn-trash-modal-cancel"
+            type="button"
+            class="px-4 py-2 rounded-xl text-xs font-medium ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'} transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+          >
+            Annuler
+          </button>
+          <button
+            id="btn-trash-modal-submit"
+            type="button"
+            class="px-4 py-2 rounded-xl text-xs font-medium bg-rose-600 hover:bg-rose-500 text-white shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-rose-400 flex items-center gap-1.5"
+          >
+            ${icons.trash ? icons.trash({ size: 14 }) : ''}
+            <span>Mettre dans la Corbeille</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderTrashResultModal(trashModalState, theme = 'dark') {
+  if (!trashModalState || !trashModalState.isOpen || trashModalState.step !== 'success' || !trashModalState.successInfo) {
+    return '';
+  }
+
+  const { successInfo } = trashModalState;
+  const { isDirectory, name, parentPath, dateTime } = successInfo;
+  const isLight = theme === 'light';
+
+  return `
+    <div
+      id="modal-trash-result-overlay"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-trash-result-title"
+    >
+      <div class="${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#181528] text-slate-100 border-emerald-500/30'} border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div class="flex items-center gap-3 text-emerald-500">
+          <div class="p-2.5 ${isLight ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-600/20 text-emerald-300'} border border-emerald-500/30 rounded-xl flex-shrink-0">
+            ${icons.trash ? icons.trash({ size: 22 }) : icons.alertCircle({ size: 22 })}
+          </div>
+          <h2 id="modal-trash-result-title" class="text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}">
+            Le ${isDirectory ? 'dossier' : 'fichier'} a été placé dans la Corbeille.
+          </h2>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div>
+            <span class="font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}">Ancien nom :</span>
+            <div class="mt-1 p-2.5 rounded-xl font-mono ${isLight ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-800'} border break-all font-semibold">
+              ${escapeHtml(name)}
+            </div>
+          </div>
+
+          <div>
+            <span class="font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}">Ancien emplacement :</span>
+            <div class="mt-1 p-2.5 rounded-xl font-mono text-[11px] ${isLight ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-900 text-slate-400 border-slate-800'} border break-all">
+              ${escapeHtml(parentPath)}
+            </div>
+          </div>
+
+          <div>
+            <span class="font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}">Date et heure de l'opération :</span>
+            <div class="mt-1 p-2.5 rounded-xl font-mono text-[11px] ${isLight ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-900 text-slate-300 border-slate-800'} border">
+              ${escapeHtml(dateTime || new Date().toLocaleString())}
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}">
+          <button
+            id="btn-trash-open-recycle-bin"
+            type="button"
+            class="px-4 py-2 rounded-xl text-xs font-medium ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'} transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 flex items-center gap-1.5"
+          >
+            ${icons.externalLink({ size: 14 })}
+            <span>Ouvrir la Corbeille</span>
+          </button>
+          <button
+            id="btn-trash-modal-close"
+            type="button"
+            class="px-4 py-2 rounded-xl text-xs font-medium bg-purple-600 hover:bg-purple-500 text-white shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-purple-400"
+          >
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderTrashErrorModal(trashModalState, theme = 'dark') {
+  if (!trashModalState || !trashModalState.isOpen || trashModalState.step !== 'error') {
+    return '';
+  }
+
+  const { error, uncertainState } = trashModalState;
+  const isLight = theme === 'light';
+
+  return `
+    <div
+      id="modal-trash-error-overlay"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-trash-error-title"
+    >
+      <div class="${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#181528] text-slate-100 border-red-500/30'} border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div class="flex items-center gap-3 text-red-500">
+          <div class="p-2.5 ${isLight ? 'bg-red-100 text-red-700' : 'bg-red-600/20 text-red-300'} border border-red-500/30 rounded-xl flex-shrink-0">
+            ${icons.alertCircle({ size: 22 })}
+          </div>
+          <h2 id="modal-trash-error-title" class="text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}">
+            Erreur lors de la mise à la Corbeille
+          </h2>
+        </div>
+
+        <div class="p-3.5 rounded-xl ${isLight ? 'bg-red-50 border-red-200 text-red-900' : 'bg-red-950/40 border-red-800/60 text-red-200'} border text-xs leading-relaxed">
+          ${escapeHtml(error || 'L’opération a échoué.')}
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}">
+          ${uncertainState ? `
+            <button
+              id="btn-trash-refresh-folder"
+              type="button"
+              class="px-4 py-2 rounded-xl text-xs font-medium bg-amber-600 hover:bg-amber-500 text-white shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-amber-400 flex items-center gap-1.5"
+            >
+              ${icons.refreshCw({ size: 14 })}
+              <span>Actualiser le dossier</span>
+            </button>
+          ` : ''}
+          <button
+            id="btn-trash-error-close"
+            type="button"
+            class="px-4 py-2 rounded-xl text-xs font-medium ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'} transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+          >
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export function renderMainLayout(
   displayName,
   currentPath,
@@ -1186,8 +1396,8 @@ export function renderMainLayout(
   copyErrorMessage = null,
   moveModalState = null,
   moveUndoToastState = null,
-  moveErrorMessage = null
-
+  moveErrorMessage = null,
+  trashModalState = null
 ) {
   const selectedPath = selectedItem ? selectedItem.path : null;
   const isLight = theme === 'light';
@@ -1509,6 +1719,9 @@ export function renderMainLayout(
       ${moveModalState?.isOpen ? renderMoveWizardModal(moveModalState, theme) : ''}
       ${moveUndoToastState?.visible ? renderMoveUndoToast(moveUndoToastState, theme) : ''}
       ${moveErrorMessage ? renderMoveErrorModal(moveErrorMessage, theme) : ''}
+      ${trashModalState?.isOpen && trashModalState.step === 'confirm' ? renderTrashConfirmModal(trashModalState, theme) : ''}
+      ${trashModalState?.isOpen && trashModalState.step === 'success' ? renderTrashResultModal(trashModalState, theme) : ''}
+      ${trashModalState?.isOpen && trashModalState.step === 'error' ? renderTrashErrorModal(trashModalState, theme) : ''}
     </div>
   `;
 }

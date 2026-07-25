@@ -13,6 +13,7 @@ import {
   cancelMoveOperation,
   undoMoveOperation,
   subscribeMoveProgress,
+  trashItemOrDirectory,
 } from './fileSystem';
 import {
   isTextFile,
@@ -40,6 +41,7 @@ import {
   validateMoveTarget,
   validateMoveName,
 } from './moveValidation';
+import { validateTrashTarget } from './trashValidation';
 
 export { sortNodePaths, getVisibleTreeNodes };
 
@@ -140,6 +142,14 @@ const state = {
     message: '',
   },
   moveErrorMessage: null,
+  trashModal: {
+    isOpen: false,
+    step: 'confirm', // 'confirm' | 'success' | 'error'
+    item: null,
+    error: null,
+    uncertainState: false,
+    successInfo: null,
+  },
 };
 
 let previewRequestId = 0;
@@ -187,6 +197,11 @@ function render() {
     return;
   }
 
+  const activeEl = document.activeElement;
+  const activeId = activeEl && activeEl.id ? activeEl.id : null;
+  const selectionStart = activeEl && typeof activeEl.selectionStart === 'number' ? activeEl.selectionStart : null;
+  const selectionEnd = activeEl && typeof activeEl.selectionEnd === 'number' ? activeEl.selectionEnd : null;
+
   const rootNode = state.treeRootPath ? state.nodes.get(state.treeRootPath) : null;
   const displayName = rootNode ? rootNode.name : 'Files';
   const currentPath = rootNode ? rootNode.path : '';
@@ -220,12 +235,27 @@ function render() {
     state.copyErrorMessage,
     state.moveModal,
     state.moveUndoToast,
-    state.moveErrorMessage
+    state.moveErrorMessage,
+    state.trashModal
   );
 
   root.innerHTML = html;
   bindMainEvents();
   attachGlobalKeyboardListener();
+
+  if (activeId) {
+    const restoredEl = document.getElementById(activeId);
+    if (restoredEl && typeof restoredEl.focus === 'function') {
+      restoredEl.focus();
+      if (selectionStart !== null && selectionEnd !== null && typeof restoredEl.setSelectionRange === 'function') {
+        try {
+          restoredEl.setSelectionRange(selectionStart, selectionEnd);
+        } catch {
+          // ignore setSelectionRange errors on input types that do not support it
+        }
+      }
+    }
+  }
 
   if (state.previewState?.preview?.kind === 'word-docx') {
     const docxContainer = document.getElementById('docx-preview-container');
@@ -970,6 +1000,132 @@ export function closeMoveModal() {
   render();
 }
 
+export function openTrashModal(item = state.selectedItem) {
+  if (!item || !item.path) return;
+
+  const targetCheck = validateTrashTarget(item, state.treeRootPath || state.rootPath);
+  if (!targetCheck.isValid) {
+    state.trashModal = {
+      isOpen: true,
+      step: 'error',
+      item,
+      error: targetCheck.error || 'Cet élément est protégé et ne peut pas être placé dans la Corbeille depuis DirectoryDisplayApp. Aucun fichier n’a été modifié.',
+      uncertainState: false,
+      successInfo: null,
+    };
+    render();
+    return;
+  }
+
+  state.trashModal = {
+    isOpen: true,
+    step: 'confirm',
+    item,
+    error: null,
+    uncertainState: false,
+    successInfo: null,
+  };
+
+  render();
+
+  setTimeout(() => {
+    const cancelBtn = document.getElementById('btn-trash-modal-cancel');
+    if (cancelBtn && typeof cancelBtn.focus === 'function') {
+      cancelBtn.focus();
+    }
+  }, 50);
+}
+
+export function closeTrashModal() {
+  state.trashModal = {
+    isOpen: false,
+    step: 'confirm',
+    item: null,
+    error: null,
+    uncertainState: false,
+    successInfo: null,
+  };
+  render();
+}
+
+export async function executeTrash() {
+  if (!state.trashModal.isOpen || !state.trashModal.item) return;
+
+  const item = state.trashModal.item;
+  const targetCheck = validateTrashTarget(item, state.treeRootPath || state.rootPath);
+  if (!targetCheck.isValid) {
+    state.trashModal.step = 'error';
+    state.trashModal.error = targetCheck.error;
+    state.trashModal.uncertainState = false;
+    render();
+    return;
+  }
+
+  const targetPath = item.path;
+
+  const res = await trashItemOrDirectory(targetPath, state.treeRootPath || state.rootPath);
+
+  if (!res.success) {
+    state.trashModal.step = 'error';
+    state.trashModal.error = res.error || 'Le fichier n’a pas pu être placé dans la Corbeille. Il est toujours présent à son emplacement initial. Aucun autre fichier n’a été modifié.';
+    state.trashModal.uncertainState = Boolean(res.uncertainState);
+    render();
+    return;
+  }
+
+  const parentPath = item.parentPath || (item.path ? item.path.substring(0, item.path.lastIndexOf('/')) : '');
+  const trashedPath = item.path;
+
+  state.nodes.delete(trashedPath);
+
+  if (parentPath && state.nodes.has(parentPath)) {
+    const parentNode = state.nodes.get(parentPath);
+    if (Array.isArray(parentNode.childrenPaths)) {
+      parentNode.childrenPaths = parentNode.childrenPaths.filter((p) => p !== trashedPath);
+    }
+  }
+
+  if (item.type === 'directory') {
+    const prefix = trashedPath + '/';
+    for (const [key] of state.nodes.entries()) {
+      if (key.startsWith(prefix)) {
+        state.nodes.delete(key);
+      }
+    }
+  }
+
+  if (state.selectedItem && (state.selectedItem.path === trashedPath || state.selectedItem.path.startsWith(trashedPath + '/'))) {
+    state.selectedItem = parentPath && state.nodes.has(parentPath) ? state.nodes.get(parentPath) : null;
+    state.previewState = {
+      status: 'error',
+      preview: null,
+      error: 'L’élément n’est plus présent dans son dossier d’origine.',
+    };
+    updateObjectUrl(null);
+  }
+
+  state.trashModal.step = 'success';
+  state.trashModal.successInfo = {
+    isDirectory: item.type === 'directory',
+    name: item.name,
+    parentPath: parentPath || state.rootPath,
+    dateTime: res.dateTime || new Date().toLocaleString(),
+  };
+
+  render();
+
+  setTimeout(() => {
+    const openBinBtn = document.getElementById('btn-trash-open-recycle-bin');
+    if (openBinBtn && typeof openBinBtn.focus === 'function') {
+      openBinBtn.focus();
+    }
+  }, 50);
+}
+
+export async function openRecycleBin() {
+  await openExternalFile('shell:RecycleBinFolder');
+}
+
 export async function handleChooseMoveDestination() {
   if (!state.moveModal.isOpen) return;
   try {
@@ -1553,6 +1709,25 @@ function bindMainEvents() {
     render();
   });
 
+  document.getElementById('btn-trigger-trash')?.addEventListener('click', () => {
+    if (state.selectedItem) {
+      openTrashModal(state.selectedItem);
+    }
+  });
+
+  document.getElementById('btn-trash-modal-cancel')?.addEventListener('click', closeTrashModal);
+  document.getElementById('btn-trash-modal-submit')?.addEventListener('click', executeTrash);
+  document.getElementById('btn-trash-open-recycle-bin')?.addEventListener('click', openRecycleBin);
+  document.getElementById('btn-trash-modal-close')?.addEventListener('click', closeTrashModal);
+  document.getElementById('btn-trash-error-close')?.addEventListener('click', closeTrashModal);
+  document.getElementById('btn-trash-refresh-folder')?.addEventListener('click', async () => {
+    const parentPath = state.trashModal?.item?.parentPath || (state.trashModal?.item?.path ? state.trashModal.item.path.substring(0, state.trashModal.item.path.lastIndexOf('/')) : '');
+    closeTrashModal();
+    if (parentPath && state.nodes.has(parentPath)) {
+      await refreshFolder(parentPath);
+    }
+  });
+
   setupResizer();
 }
 
@@ -1693,11 +1868,35 @@ function attachGlobalKeyboardListener() {
       return;
     }
 
+    if (state.moveErrorMessage) {
+      if (e.key === 'Escape' || e.key === 'Enter') {
+        e.preventDefault();
+        state.moveErrorMessage = null;
+        render();
+      }
+      return;
+    }
+
     if (state.copyErrorMessage) {
       if (e.key === 'Escape' || e.key === 'Enter') {
         e.preventDefault();
         state.copyErrorMessage = null;
         render();
+      }
+      return;
+    }
+
+    if (state.trashModal?.isOpen) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeTrashModal();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (state.trashModal.step === 'confirm') {
+          executeTrash();
+        } else if (state.trashModal.step === 'success' || state.trashModal.step === 'error') {
+          closeTrashModal();
+        }
       }
       return;
     }
@@ -1741,6 +1940,16 @@ function attachGlobalKeyboardListener() {
       } else if (e.key === 'Enter') {
         e.preventDefault();
         confirmExternalOpen();
+      }
+      return;
+    }
+
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      const searchInput = document.getElementById('input-search');
+      if (searchInput) {
+        searchInput.focus();
+        searchInput.select();
       }
       return;
     }

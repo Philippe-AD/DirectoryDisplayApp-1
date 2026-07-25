@@ -78,6 +78,17 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
             ${icons.edit({ size: 14 })}
             <span>Renommer</span>
           </button>
+          <button
+            id="btn-trigger-trash"
+            type="button"
+            data-item-path="${escapeHtml(selectedItem.path)}"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-700 hover:bg-rose-600 text-[11px] font-medium text-white transition-colors shadow-2xs flex-shrink-0"
+            title="Mettre dans la Corbeille…"
+            aria-label="Mettre ce dossier dans la Corbeille"
+          >
+            ${icons.trash ? icons.trash({ size: 14 }) : icons.alertCircle({ size: 14 })}
+            <span>Mettre dans la Corbeille…</span>
+          </button>
         </div>
 
         <div class="mt-5 space-y-3 text-xs">
@@ -340,6 +351,18 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
           >
             ${icons.edit({ size: 14 })}
             <span class="hidden sm:inline">Renommer</span>
+          </button>
+
+          <button
+            id="btn-trigger-trash"
+            type="button"
+            data-item-path="${escapeHtml(selectedItem.path)}"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-700 hover:bg-rose-600 text-[11px] font-medium text-white transition-colors shadow-2xs flex-shrink-0"
+            title="Mettre dans la Corbeille…"
+            aria-label="Mettre ce fichier dans la Corbeille"
+          >
+            ${icons.trash ? icons.trash({ size: 14 }) : icons.alertCircle({ size: 14 })}
+            <span class="hidden sm:inline">Mettre dans la Corbeille…</span>
           </button>
 
           <button

@@ -20,6 +20,8 @@ function createWindow() {
     },
   });
 
+  mainWindow.maximize();
+
   const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 
   if (!app.isPackaged && process.env.NODE_ENV !== 'production') {
@@ -31,7 +33,6 @@ function createWindow() {
         }
       }, 1500);
     });
-    mainWindow.webContents.openDevTools();
   } else {
     const indexPath = path.join(__dirname, '../dist/index.html');
     mainWindow.loadFile(indexPath);
@@ -343,11 +344,12 @@ ipcMain.handle('fs:undoCopy', async (_event, copyPath) => {
       };
     }
 
+    const winCopyPath = path.win32 ? path.win32.normalize(path.resolve(copyPath)) : path.resolve(copyPath);
     if (shell && typeof shell.trashItem === 'function') {
-      await shell.trashItem(copyPath);
+      await shell.trashItem(winCopyPath);
       return { success: true };
     } else {
-      await fs.promises.rm(copyPath, { recursive: true, force: true });
+      await fs.promises.rm(winCopyPath, { recursive: true, force: true });
       return { success: true };
     }
   } catch (err) {
@@ -680,6 +682,150 @@ ipcMain.handle('fs:readFileBuffer', async (_event, filePath, options) => {
         // Ignore handle close errors
       }
     }
+  }
+});
+
+ipcMain.handle('fs:trashItem', async (_event, options) => {
+  const targetPath = typeof options === 'string' ? options : options?.targetPath;
+  const appRootDir = typeof options === 'object' ? options?.appRootDir : '';
+
+  if (!targetPath) {
+    return {
+      success: false,
+      error: 'Élément introuvable ou chemin d’accès invalide. Aucun fichier n’a été modifié.',
+      code: 'INVALID_PATH',
+    };
+  }
+
+  const norm = targetPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+
+  if (/^[a-z]:?$/i.test(norm) || norm === '' || norm === '/') {
+    return {
+      success: false,
+      isProtected: true,
+      error: 'Cet élément est protégé et ne peut pas être placé dans la Corbeille depuis DirectoryDisplayApp. Aucun fichier n’a été modifié.',
+      code: 'PROTECTED',
+    };
+  }
+
+  if (appRootDir) {
+    const normAppRoot = appRootDir.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    if (norm === normAppRoot) {
+      return {
+        success: false,
+        isProtected: true,
+        error: 'Cet élément est protégé et ne peut pas être placé dans la Corbeille depuis DirectoryDisplayApp. Aucun fichier n’a été modifié.',
+        code: 'PROTECTED_APP_ROOT',
+      };
+    }
+  }
+
+  const protectedPrefixes = [
+    'c:/windows',
+    'c:/program files',
+    'c:/program files (x86)',
+    'c:/programdata',
+    'c:/system volume information',
+    'c:/$recycle.bin',
+    'c:/boot',
+    'c:/recovery',
+  ];
+
+  if (protectedPrefixes.some((prefix) => norm === prefix || norm.startsWith(prefix + '/'))) {
+    return {
+      success: false,
+      isProtected: true,
+      error: 'Cet élément est protégé et ne peut pas être placé dans la Corbeille depuis DirectoryDisplayApp. Aucun fichier n’a été modifié.',
+      code: 'PROTECTED_SYSTEM',
+    };
+  }
+
+  let stat;
+  try {
+    stat = await fs.promises.stat(targetPath);
+  } catch (err) {
+    return {
+      success: false,
+      error: 'L’élément n’a pas pu être placé dans la Corbeille car il est introuvable ou déjà déplacé. Il est toujours présent à son emplacement initial s’il existait. Aucun autre fichier n’a été modifié.',
+      code: err.code || 'ENOENT',
+    };
+  }
+
+  const isDirectory = stat.isDirectory();
+  const name = path.basename(targetPath);
+  const parentPath = path.dirname(targetPath).replace(/\\/g, '/');
+  const dateTimeStr = new Date().toLocaleString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+
+  const winPath = path.win32 ? path.win32.normalize(path.resolve(targetPath)) : path.resolve(targetPath);
+  try {
+    if (shell && typeof shell.trashItem === 'function') {
+      await shell.trashItem(winPath);
+    } else {
+      await fs.promises.rm(winPath, { recursive: true, force: true });
+    }
+
+    let stillExists = false;
+    try {
+      await fs.promises.access(winPath);
+      stillExists = true;
+    } catch {
+      stillExists = false;
+    }
+
+    if (stillExists) {
+      return {
+        success: false,
+        error: `Le ${isDirectory ? 'dossier' : 'fichier'} n’a pas pu être placé dans la Corbeille. Il est toujours présent à son emplacement initial. Aucun autre fichier n’a été modifié.`,
+        code: 'FAILED_TO_REMOVE',
+      };
+    }
+
+    return {
+      success: true,
+      isDirectory,
+      name,
+      parentPath,
+      targetPath: targetPath.replace(/\\/g, '/'),
+      dateTime: dateTimeStr,
+    };
+  } catch (err) {
+    let stillExists = true;
+    try {
+      await fs.promises.access(winPath);
+    } catch {
+      stillExists = false;
+    }
+
+    if (!stillExists) {
+      return {
+        success: false,
+        uncertainState: true,
+        error: 'L’opération n’a pas pu être confirmée. Actualisez le dossier pour vérifier l’état de l’élément.',
+        code: 'UNCERTAIN_STATE',
+      };
+    }
+
+    let errorMsg = `Le ${isDirectory ? 'dossier' : 'fichier'} n’a pas pu être placé dans la Corbeille.`;
+    if (err.code === 'EACCES' || err.code === 'EPERM') {
+      errorMsg = 'Accès refusé par Windows lors de la mise à la Corbeille.';
+    } else if (err.code === 'EBUSY') {
+      errorMsg = 'L’élément est utilisé par une autre application.';
+    } else if (err.code === 'ENOENT') {
+      errorMsg = 'L’élément est introuvable ou a été déplacé.';
+    }
+
+    return {
+      success: false,
+      error: `${errorMsg} Il est toujours présent à son emplacement initial. Aucun autre fichier n’a été modifié.`,
+      code: err.code || 'UNKNOWN',
+    };
   }
 });
 

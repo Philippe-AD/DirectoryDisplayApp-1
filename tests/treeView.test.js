@@ -310,4 +310,23 @@ describe('Main Layout Resizing & Structure', () => {
     expect(html).toContain('min-w-[240px]');
     expect(html).toContain('min-w-[300px]');
   });
+
+  it('renders search input with value and search clear button when search is provided', () => {
+    const nodes = [{ path: '/Project', name: 'Project', type: 'directory', level: 0 }];
+
+    const html = renderMainLayout(
+      'Project',
+      '/Project',
+      nodes,
+      false,
+      'test-query',
+      null,
+      null,
+      { status: 'idle' }
+    );
+
+    expect(html).toContain('id="input-search"');
+    expect(html).toContain('value="test-query"');
+    expect(html).toContain('id="btn-clear-search"');
+  });
 });
