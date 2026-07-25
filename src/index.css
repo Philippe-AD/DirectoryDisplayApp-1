@@ -2,10 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom Windows 11 style subtle scrollbars */
+/* Custom Cloud Dock & Dark Sidebar scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -13,12 +13,20 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.4);
+  background: rgba(156, 163, 175, 0.25);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(107, 114, 128, 0.7);
+  background: rgba(156, 163, 175, 0.5);
+}
+
+/* Specific Dark Sidebar Scrollbars */
+.dark-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+.dark-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 /* Styles pour la prévisualisation de documents Word (docx-preview) */
@@ -28,12 +36,33 @@
 }
 
 .docx-wrapper > section.docx {
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04) !important;
   margin: 0 auto 16px auto !important;
   background-color: white !important;
-  border-radius: 6px !important;
+  border-radius: 12px !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
 }
 
+/* Connected Tree Branch Lines styling */
+.tree-node-row {
+  position: relative;
+}
 
+/* Glassmorphism utility */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-dark {
+  background: rgba(24, 21, 40, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Floating Bottom Dock Shadow */
+.floating-dock-shadow {
+  box-shadow: 0 12px 35px -8px rgba(0, 0, 0, 0.18), 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+}

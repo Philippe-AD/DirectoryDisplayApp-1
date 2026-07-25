@@ -37,6 +37,7 @@ const state = {
   showExternalOpenModal: false,
   skipExternalOpenWarning: false,
   pendingExternalOpenPath: null,
+  theme: 'light',
 };
 
 let previewRequestId = 0;
@@ -162,7 +163,8 @@ function render() {
     state.panelWidth,
     state.isHeaderCollapsed,
     state.isTreeVisible,
-    state.showExternalOpenModal
+    state.showExternalOpenModal,
+    state.theme
   );
 
   root.innerHTML = html;
@@ -239,6 +241,11 @@ function bindMainEvents() {
 
   document.getElementById('btn-toggle-header')?.addEventListener('click', () => {
     state.isHeaderCollapsed = !state.isHeaderCollapsed;
+    render();
+  });
+
+  document.getElementById('btn-toggle-theme')?.addEventListener('click', () => {
+    state.theme = state.theme === 'dark' ? 'light' : 'dark';
     render();
   });
 

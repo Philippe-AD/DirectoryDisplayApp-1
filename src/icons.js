@@ -13,10 +13,10 @@ export const icons = {
     iconSvg('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>', opts),
 
   folder: (opts) =>
-    iconSvg('<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L8.6 3.3A2 2 0 0 0 6.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>', opts),
+    iconSvg('<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/>', opts),
 
   folderOpen: (opts) =>
-    iconSvg('<path d="m6 14 1.5-6h13.3L19 14H6Z"/><path d="M6 14 4.5 4H2"/><path d="M20 20H4a2 2 0 0 1-2-2V4"/>', opts),
+    iconSvg('<path d="M3 7v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 4H5a2 2 0 0 0-2 2"/><path d="M3 10h18l-2 10H5L3 10z"/>', opts),
 
   folderTree: (opts) =>
     iconSvg('<path d="M20 10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 3h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z"/><path d="M20 21a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 14h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z"/><path d="M4 3v18"/><path d="M4 9h4"/><path d="M4 17h4"/>', opts),
@@ -80,5 +80,30 @@ export const icons = {
 
   externalLink: (opts) =>
     iconSvg('<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>', opts),
+
+  grid: (opts) =>
+    iconSvg('<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>', opts),
+
+  star: (opts) =>
+    iconSvg('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>', opts),
+
+  bell: (opts) =>
+    iconSvg('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>', opts),
+
+  plus: (opts) =>
+    iconSvg('<path d="M5 12h14"/><path d="M12 5v14"/>', opts),
+
+  cloud: (opts) =>
+    iconSvg('<path d="M17.5 19x-12A5.5 5.5 0 0 1 2 13.5A5.5 5.5 0 0 1 7.1 8.1A7 7 0 0 1 20.7 12A4.5 4.5 0 0 1 17.5 19z"/>', opts),
+
+  fileSpreadsheet: (opts) =>
+    iconSvg('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M12 9v8"/>', opts),
+
+  sun: (opts) =>
+    iconSvg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m4.93 19.07 1.41-1.41"/><path d="m17.66 6.34 1.41-1.41"/>', opts),
+
+  moon: (opts) =>
+    iconSvg('<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>', opts),
 };
+
 
