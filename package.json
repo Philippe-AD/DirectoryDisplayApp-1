@@ -34,7 +34,6 @@
     }
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.57.4",
     "docx-preview": "^0.4.0",
     "mammoth": "^1.12.0",
     "prismjs": "^1.29.0"

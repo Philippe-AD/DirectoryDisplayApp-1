@@ -8,7 +8,6 @@ export {
 
 export {
   renderWelcomeScreen,
-  renderFallbackUploadScreen,
 } from './renderers/welcomeScreen';
 
 export {
@@ -28,5 +27,8 @@ export {
   renderRenameConfirmModal,
   renderUndoToast,
   renderRenameErrorModal,
+  renderCopyWizardModal,
+  renderCopyUndoToast,
+  renderCopyErrorModal,
   renderMainLayout,
 } from './renderers/layoutRenderer';

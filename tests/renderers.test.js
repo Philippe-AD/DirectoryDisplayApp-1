@@ -72,7 +72,6 @@ describe('renderers & UI layout', () => {
       visibleNodes,
       false,
       '',
-      false,
       null,
       selectedItem,
       { status: 'text', preview: { kind: 'text', content: '# Hello' } },
@@ -100,7 +99,6 @@ describe('renderers & UI layout', () => {
       visibleNodes,
       false,
       '',
-      false,
       null,
       visibleNodes[0],
       { status: 'idle' },
@@ -139,7 +137,6 @@ describe('renderers & UI layout', () => {
       visibleNodes,
       false,
       '',
-      false,
       null,
       null,
       { status: 'idle' },
@@ -155,7 +152,6 @@ describe('renderers & UI layout', () => {
       visibleNodes,
       false,
       '',
-      false,
       null,
       null,
       { status: 'idle' },
@@ -187,4 +183,3 @@ describe('renderers & UI layout', () => {
     expect(html).toContain('id="docx-preview-container"');
   });
 });
-

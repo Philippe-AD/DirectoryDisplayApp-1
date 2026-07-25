@@ -1,5 +1,5 @@
 import { icons } from '../icons';
-import { escapeHtml } from './formatters';
+import { escapeHtml, formatFileSize } from './formatters';
 import { renderTreeView } from './treeRenderer';
 import { renderPreviewPanel } from './previewRenderer';
 
@@ -308,13 +308,440 @@ export function renderRenameErrorModal(errorMessage, theme = 'dark') {
   `;
 }
 
+export function renderCopyWizardModal(copyState, theme = 'dark') {
+  if (!copyState || !copyState.isOpen || !copyState.sourceItem) return '';
+  const {
+    step = 'wizard',
+    sourceItem,
+    destDirPath = '',
+    copyName = '',
+    validationError = null,
+    extensionWarning = null,
+    hasConflict = false,
+    progressState = { currentItem: '', percentage: 0, copiedCount: 0, totalCount: 0 },
+    resultState = { sourcePath: '', copyPath: '', copyName: '' },
+  } = copyState;
+
+  const isDir = sourceItem.type === 'directory';
+  const itemTypeLabel = isDir ? 'dossier' : 'fichier';
+  const isLight = theme === 'light';
+
+  if (step === 'wizard') {
+    return `
+      <div
+        id="modal-copy-wizard-overlay"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-copy-title"
+      >
+        <div class="${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#181528] text-slate-100 border-purple-500/30'} border rounded-2xl p-6 max-w-xl w-full shadow-2xl space-y-4">
+          <div class="flex items-center gap-3">
+            <div class="p-2.5 ${isLight ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-purple-600/20 text-purple-300 border-purple-500/30'} border rounded-xl flex-shrink-0">
+              ${icons.copy({ size: 22 })}
+            </div>
+            <div>
+              <h2 id="modal-copy-title" class="text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}">
+                Assistant de copie — Créer une copie de ce ${itemTypeLabel}
+              </h2>
+              <p class="text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}">
+                Parcours guidé pour dupliquer l'élément en toute sécurité sans toucher à l'original.
+              </p>
+            </div>
+          </div>
+
+          <!-- Section 1: Élément original -->
+          <div class="p-3.5 ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-slate-800'} border rounded-xl space-y-2 text-xs">
+            <div class="flex items-center justify-between border-b ${isLight ? 'border-slate-200' : 'border-slate-800'} pb-1.5">
+              <span class="text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-purple-700' : 'text-purple-300'}">Élément original</span>
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${isDir ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'} font-mono">${isDir ? 'Dossier' : 'Fichier'}</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div>
+                <span class="text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}">Nom original :</span>
+                <p class="font-mono font-semibold ${isLight ? 'text-slate-800' : 'text-slate-200'} truncate" id="copy-modal-source-name" title="${escapeHtml(sourceItem.name)}">${escapeHtml(sourceItem.name)}</p>
+              </div>
+              ${sourceItem.size !== undefined && !isDir ? `
+                <div>
+                  <span class="text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}">Taille :</span>
+                  <p class="font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'}">${formatFileSize(sourceItem.size)}</p>
+                </div>
+              ` : ''}
+            </div>
+            <div>
+              <span class="text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}">Emplacement actuel :</span>
+              <p class="font-mono text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'} break-all" id="copy-modal-source-path">${escapeHtml(sourceItem.path)}</p>
+            </div>
+          </div>
+
+          <!-- Section 2: Destination -->
+          <div class="space-y-1.5">
+            <label class="block text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}">
+              Dossier de destination :
+            </label>
+            <div class="flex items-center gap-2">
+              <div class="flex-1 px-3 py-2 text-xs font-mono rounded-xl border ${isLight ? 'border-slate-300 bg-slate-100 text-slate-800' : 'border-slate-700 bg-slate-900 text-slate-200'} truncate" id="copy-modal-dest-path" title="${escapeHtml(destDirPath)}">
+                ${escapeHtml(destDirPath || 'Aucun dossier choisi')}
+              </div>
+              <button
+                id="btn-copy-browse-dest"
+                type="button"
+                class="px-3 py-2 rounded-xl text-xs font-medium ${isLight ? 'bg-purple-100 hover:bg-purple-200 text-purple-800 border border-purple-300' : 'bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40'} transition-colors flex-shrink-0"
+              >
+                ${icons.folderOpen({ size: 14, className: 'inline mr-1' })}
+                <span>Choisir le dossier…</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 3: Nom de la copie -->
+          <div class="space-y-1.5">
+            <label for="input-copy-name" class="block text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}">
+              Nom de la nouvelle copie :
+            </label>
+            <input
+              type="text"
+              id="input-copy-name"
+              value="${escapeHtml(copyName)}"
+              class="w-full px-3.5 py-2 text-xs font-mono rounded-xl border ${validationError || hasConflict ? 'border-red-500 focus:ring-red-500' : (isLight ? 'border-slate-300 bg-white text-slate-900 focus:ring-purple-500' : 'border-slate-700 bg-slate-900 text-slate-100 focus:ring-purple-500')} focus:outline-none focus:ring-2 shadow-inner"
+              placeholder="Nom de la copie..."
+              autocomplete="off"
+              spellcheck="false"
+            />
+            ${validationError ? `
+              <p id="copy-validation-error" class="text-[11px] text-red-500 font-medium flex items-center gap-1 mt-1">
+                ${icons.alertCircle({ size: 13, className: 'flex-shrink-0' })}
+                <span>${escapeHtml(validationError)}</span>
+              </p>
+            ` : ''}
+          </div>
+
+          <!-- Section 4: Avertissement extension -->
+          ${extensionWarning ? `
+            <div id="copy-extension-warning" class="p-3 bg-amber-500/15 border border-amber-500/40 rounded-xl text-amber-300 text-xs flex items-start gap-2.5">
+              ${icons.alertCircle({ size: 16, className: 'text-amber-400 flex-shrink-0 mt-0.5' })}
+              <div class="text-[11px] leading-relaxed">
+                <span class="font-bold">Avertissement modification d'extension :</span>
+                <p class="mt-0.5">${escapeHtml(extensionWarning)}</p>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Section 5: Conflict Handling UI -->
+          ${hasConflict ? `
+            <div id="copy-conflict-box" class="p-3.5 bg-red-950/40 border border-red-500/50 rounded-xl text-xs space-y-2.5">
+              <div class="flex items-center gap-2 text-red-400 font-semibold text-xs">
+                ${icons.alertCircle({ size: 16, className: 'flex-shrink-0' })}
+                <span>Nom déjà existant dans la destination !</span>
+              </div>
+              <p class="text-[11px] text-red-200">
+                Un ${itemTypeLabel} nommé <span class="font-mono font-bold">${escapeHtml(copyName)}</span> existe déjà dans ce dossier.
+                Afin d'éviter tout écrasement, aucun fichier ne sera remplacé.
+              </p>
+              <div class="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  id="btn-copy-conflict-edit"
+                  type="button"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-100 transition-colors"
+                >
+                  Choisir un autre nom
+                </button>
+                <button
+                  id="btn-copy-conflict-auto"
+                  type="button"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-600 hover:bg-purple-500 text-white transition-colors"
+                >
+                  Utiliser un nom automatique
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Section 6: Permanent Explanation of Consequences -->
+          <div id="copy-consequences-text" class="p-3 ${isLight ? 'bg-purple-50 border-purple-200 text-purple-900' : 'bg-purple-950/40 border-purple-500/30 text-purple-200'} border rounded-xl text-xs leading-relaxed">
+            <p class="font-medium">
+              L’élément original restera à son emplacement actuel. Une nouvelle copie sera créée dans le dossier choisi. Aucun élément existant ne sera remplacé.
+            </p>
+          </div>
+
+          <!-- Buttons -->
+          <div class="flex items-center justify-end gap-2.5 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}">
+            <button
+              id="btn-copy-modal-cancel"
+              type="button"
+              class="px-4 py-2 rounded-xl text-xs font-medium ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'} transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+            >
+              Annuler
+            </button>
+            <button
+              id="btn-copy-modal-next"
+              type="button"
+              ${validationError || hasConflict ? 'disabled' : ''}
+              class="px-4 py-2 rounded-xl text-xs font-medium ${validationError || hasConflict ? 'bg-purple-400/40 text-purple-200/50 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500 text-white shadow-md focus:outline-none focus:ring-2 focus:ring-purple-400'} transition-all"
+            >
+              Suivant
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (step === 'confirm') {
+    return `
+      <div
+        id="modal-copy-confirm-overlay"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-copy-confirm-title"
+      >
+        <div class="${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#181528] text-slate-100 border-purple-500/30'} border rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+          <div class="flex items-center gap-3 text-purple-400">
+            <div class="p-2.5 ${isLight ? 'bg-purple-100 text-purple-700' : 'bg-purple-600/20 text-purple-300'} border border-purple-500/30 rounded-xl flex-shrink-0">
+              ${icons.copy({ size: 22 })}
+            </div>
+            <h2 id="modal-copy-confirm-title" class="text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}">
+              Résumé avant création de la copie
+            </h2>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <p class="font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}">Vous allez créer une copie de :</p>
+            <div class="p-2.5 rounded-xl font-mono ${isLight ? 'bg-slate-100 text-purple-800 border-slate-300' : 'bg-slate-900 text-purple-300 border-slate-800'} border break-all font-semibold" id="confirm-copy-source">
+              ${escapeHtml(sourceItem.path)}
+            </div>
+
+            <p class="font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}">dans :</p>
+            <div class="p-2.5 rounded-xl font-mono ${isLight ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-800'} border break-all font-semibold" id="confirm-copy-dest">
+              ${escapeHtml(destDirPath)}
+            </div>
+
+            <p class="font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}">La copie sera nommée :</p>
+            <div class="p-2.5 rounded-xl font-mono ${isLight ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-slate-900 text-emerald-300 border-slate-800'} border break-all font-semibold" id="confirm-copy-name">
+              ${escapeHtml(copyName)}
+            </div>
+
+            <div class="p-3 rounded-xl ${isLight ? 'bg-purple-50 text-purple-900 border-purple-200' : 'bg-purple-950/40 text-purple-200 border-purple-500/30'} border text-[11px] space-y-1">
+              <p class="font-medium">• Le ${itemTypeLabel} original restera dans son dossier actuel.</p>
+              <p class="font-medium">• Aucun fichier existant ne sera remplacé.</p>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-2.5 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}">
+            <button
+              id="btn-copy-confirm-back"
+              type="button"
+              class="px-4 py-2 rounded-xl text-xs font-medium ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'} transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+            >
+              Retour
+            </button>
+            <button
+              id="btn-copy-confirm-execute"
+              type="button"
+              class="px-4 py-2 rounded-xl text-xs font-medium bg-purple-600 hover:bg-purple-500 text-white shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400"
+            >
+              Créer la copie
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (step === 'progress') {
+    const percentage = progressState.percentage || 0;
+    return `
+      <div
+        id="modal-copy-progress-overlay"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-copy-progress-title"
+      >
+        <div class="${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#181528] text-slate-100 border-purple-500/30'} border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 text-center">
+          <div class="flex items-center justify-center">
+            <div class="p-3 bg-purple-600/20 text-purple-400 border border-purple-500/30 rounded-2xl animate-pulse">
+              ${icons.copy({ size: 28 })}
+            </div>
+          </div>
+          <h2 id="modal-copy-progress-title" class="text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}">
+            Copie en cours…
+          </h2>
+
+          <div class="space-y-2 text-xs">
+            <p class="font-mono text-purple-300 text-[11px] truncate max-w-xs mx-auto" id="copy-progress-item-name">
+              ${escapeHtml(progressState.currentItem || sourceItem.name)}
+            </p>
+            <p class="text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'} truncate">
+              Destination : <span class="font-mono">${escapeHtml(destDirPath)}</span>
+            </p>
+
+            <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden border border-slate-700 mt-3">
+              <div class="bg-gradient-to-r from-purple-500 to-indigo-500 h-2.5 rounded-full transition-all duration-200" style="width: ${percentage}%;"></div>
+            </div>
+            <p class="text-[10px] font-mono text-slate-400 text-right">${percentage}%</p>
+          </div>
+
+          <div class="pt-2 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}">
+            <button
+              id="btn-copy-cancel-progress"
+              type="button"
+              class="px-4 py-2 rounded-xl text-xs font-medium bg-red-600/80 hover:bg-red-600 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
+            >
+              Annuler la copie
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (step === 'success') {
+    return `
+      <div
+        id="modal-copy-success-overlay"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-copy-success-title"
+      >
+        <div class="${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#181528] text-slate-100 border-purple-500/30'} border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+          <div class="flex items-center gap-3 text-emerald-400">
+            <div class="p-2.5 bg-emerald-500/20 border border-emerald-500/40 rounded-xl flex-shrink-0">
+              ${icons.refreshCw({ size: 22 })}
+            </div>
+            <h2 id="modal-copy-success-title" class="text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}">
+              La copie a été créée.
+            </h2>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <div>
+              <span class="text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}">Original :</span>
+              <p class="font-mono text-[11px] ${isLight ? 'text-slate-700' : 'text-slate-300'} break-all mt-0.5 p-2 rounded-lg bg-slate-900/40 border border-slate-800">
+                ${escapeHtml(resultState.sourcePath || sourceItem.path)}
+              </p>
+            </div>
+            <div>
+              <span class="text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}">Copie :</span>
+              <p class="font-mono text-[11px] text-emerald-400 font-semibold break-all mt-0.5 p-2 rounded-lg bg-slate-900/60 border border-emerald-500/30">
+                ${escapeHtml(resultState.copyPath)}
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-2 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'} flex-wrap">
+            <button
+              id="btn-copy-success-show"
+              type="button"
+              class="px-3 py-2 rounded-xl text-xs font-medium bg-purple-600 hover:bg-purple-500 text-white transition-colors"
+            >
+              Afficher la copie
+            </button>
+            <button
+              id="btn-copy-success-open-folder"
+              type="button"
+              class="px-3 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+            >
+              Ouvrir son dossier
+            </button>
+            <button
+              id="btn-copy-success-close"
+              type="button"
+              class="px-3 py-2 rounded-xl text-xs font-medium ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'} transition-colors"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  return '';
+}
+
+export function renderCopyUndoToast(undoCopyToastState, theme = 'dark') {
+  if (!undoCopyToastState || !undoCopyToastState.visible) return '';
+  const isLight = theme === 'light';
+
+  return `
+    <div
+      id="undo-copy-toast"
+      role="status"
+      aria-live="polite"
+      class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 ${isLight ? 'bg-slate-900 text-slate-100 shadow-2xl border border-slate-700' : 'bg-[#181528] text-slate-100 shadow-2xl border border-purple-500/40'} rounded-2xl text-xs"
+    >
+      <div class="p-1 bg-emerald-500/20 text-emerald-400 rounded-lg flex-shrink-0">
+        ${icons.copy({ size: 16 })}
+      </div>
+      <span class="font-medium">${escapeHtml(undoCopyToastState.message || 'Une nouvelle copie a été créée.')}</span>
+      <div class="flex items-center gap-2 ml-2">
+        <button
+          id="btn-undo-copy"
+          type="button"
+          class="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400 text-xs"
+        >
+          Annuler cette copie
+        </button>
+        <button
+          id="btn-dismiss-undo-copy-toast"
+          type="button"
+          aria-label="Fermer la notification"
+          class="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"
+        >
+          ${icons.x({ size: 14 })}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+export function renderCopyErrorModal(copyErrorMessage, theme = 'dark') {
+  if (!copyErrorMessage) return '';
+  const isLight = theme === 'light';
+
+  return `
+    <div
+      id="modal-copy-error-overlay"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-copy-error-title"
+    >
+      <div class="${isLight ? 'bg-white text-slate-900 border-red-200' : 'bg-[#181528] text-slate-100 border-red-500/40'} border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div class="flex items-center gap-3 text-red-500">
+          <div class="p-2.5 bg-red-500/20 border border-red-500/40 rounded-xl flex-shrink-0">
+            ${icons.alertCircle({ size: 22 })}
+          </div>
+          <h2 id="modal-copy-error-title" class="text-sm font-bold text-red-500">Impossible de créer la copie</h2>
+        </div>
+
+        <p class="text-xs ${isLight ? 'text-slate-700' : 'text-slate-300'} leading-relaxed" id="copy-error-message-text">
+          ${escapeHtml(copyErrorMessage)}
+        </p>
+
+        <div class="flex items-center justify-end pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}">
+          <button
+            id="btn-copy-error-dismiss"
+            type="button"
+            class="px-4 py-2 rounded-xl text-xs font-medium bg-red-600 hover:bg-red-500 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
+          >
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export function renderMainLayout(
   displayName,
   currentPath,
   visibleNodes = [],
   loading = false,
   search = '',
-  usingFallback = false,
   error = null,
   selectedItem = null,
   previewState = { status: 'idle' },
@@ -327,7 +754,10 @@ export function renderMainLayout(
   theme = 'dark',
   renameModalState = null,
   undoToastState = null,
-  renameErrorMessage = null
+  renameErrorMessage = null,
+  copyModalState = null,
+  copyUndoToastState = null,
+  copyErrorMessage = null
 ) {
   const selectedPath = selectedItem ? selectedItem.path : null;
   const isLight = theme === 'light';
@@ -426,15 +856,13 @@ export function renderMainLayout(
             <span class="hidden sm:inline">${isTreeVisible ? 'Masquer l’arborescence' : 'Afficher l’arborescence'}</span>
           </button>
 
-          ${!usingFallback ? `
-            <button
-              id="btn-open-another"
-              class="flex items-center gap-1 bg-purple-600 hover:bg-purple-500 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-colors shadow-2xs"
-            >
-              ${icons.folderTree({ size: 13 })}
-              <span class="hidden sm:inline">Changer dossier</span>
-            </button>
-          ` : ''}
+          <button
+            id="btn-open-another"
+            class="flex items-center gap-1 bg-purple-600 hover:bg-purple-500 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-colors shadow-2xs"
+          >
+            ${icons.folderTree({ size: 13 })}
+            <span class="hidden sm:inline">Changer dossier</span>
+          </button>
         </div>
       </div>
     `
@@ -490,15 +918,13 @@ export function renderMainLayout(
             <span class="hidden sm:inline">${isTreeVisible ? 'Masquer l’arborescence' : 'Afficher l’arborescence'}</span>
           </button>
 
-          ${!usingFallback ? `
-            <button
-              id="btn-open-another"
-              class="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-3 py-1.5 rounded-xl text-xs font-medium transition-colors shadow-sm"
-            >
-              ${icons.folderTree({ size: 14 })}
-              <span class="hidden sm:inline">Changer de dossier</span>
-            </button>
-          ` : ''}
+          <button
+            id="btn-open-another"
+            class="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-3 py-1.5 rounded-xl text-xs font-medium transition-colors shadow-sm"
+          >
+            ${icons.folderTree({ size: 14 })}
+            <span class="hidden sm:inline">Changer de dossier</span>
+          </button>
         </div>
       </div>
     `;
@@ -647,6 +1073,9 @@ export function renderMainLayout(
       ${renameModalState?.isOpen && renameModalState.step === 'confirm' ? renderRenameConfirmModal(renameModalState, theme) : ''}
       ${undoToastState?.visible ? renderUndoToast(undoToastState, theme) : ''}
       ${renameErrorMessage ? renderRenameErrorModal(renameErrorMessage, theme) : ''}
+      ${copyModalState?.isOpen ? renderCopyWizardModal(copyModalState, theme) : ''}
+      ${copyUndoToastState?.visible ? renderCopyUndoToast(copyUndoToastState, theme) : ''}
+      ${copyErrorMessage ? renderCopyErrorModal(copyErrorMessage, theme) : ''}
     </div>
   `;
 }

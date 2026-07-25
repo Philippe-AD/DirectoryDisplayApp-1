@@ -1,90 +1,57 @@
 import { describe, expect, it } from 'vitest';
-import { getElectronFile, listDirectory } from '../src/fileSystem';
+import { getElectronFile, listDirectory, openDirectory } from '../src/fileSystem';
 
-function directoryWith(entries) {
-  return {
-    kind: 'directory',
-    name: 'root',
-    async *values() {
-      yield* entries;
-    },
-  };
-}
-
-describe('listDirectory', () => {
-  it('puts directories first and sorts entries by name', async () => {
-    const nested = directoryWith([]);
-    const result = await listDirectory(directoryWith([
-      {
-        kind: 'file',
-        name: 'zeta.txt',
-        getFile: async () => new File(['hello'], 'zeta.txt'),
-      },
-      { ...nested, name: 'alpha' },
-      {
-        kind: 'file',
-        name: 'beta.txt',
-        getFile: async () => new File(['1234'], 'beta.txt'),
-      },
-    ]), '/root');
-
-    expect(result.files).toEqual([
-      { name: 'alpha', type: 'directory', path: '/root/alpha' },
-      { name: 'beta.txt', type: 'file', size: 4, path: '/root/beta.txt' },
-      { name: 'zeta.txt', type: 'file', size: 5, path: '/root/zeta.txt' },
-    ]);
-    expect(result.handles).toHaveLength(3);
-  });
-
-  it('keeps a file entry when its metadata cannot be read', async () => {
-    const result = await listDirectory(directoryWith([{
-      kind: 'file',
-      name: 'locked.txt',
-      getFile: async () => {
-        throw new DOMException('Denied', 'NotAllowedError');
-      },
-    }]));
-
-    expect(result.files).toEqual([
-      { name: 'locked.txt', type: 'file', path: '/locked.txt' },
-    ]);
-  });
-
-  it('continues listing readable entries when a system entry iterator throws an error', async () => {
-    const dir = {
-      kind: 'directory',
-      name: 'root',
-      values() {
-        let step = 0;
-        return {
-          [Symbol.asyncIterator]() {
-            return this;
-          },
-          async next() {
-            step++;
-            if (step === 1) {
-              return {
-                done: false,
-                value: {
-                  kind: 'file',
-                  name: 'normal.txt',
-                  getFile: async () => new File(['ok'], 'normal.txt'),
-                },
-              };
-            }
-            if (step === 2) {
-              throw new DOMException('System volume access denied', 'SecurityError');
-            }
-            return { done: true, value: undefined };
-          },
-        };
-      },
+describe('listDirectory (Electron)', () => {
+  it('calls electronAPI.readDirectory and returns files', async () => {
+    globalThis.window = globalThis;
+    globalThis.window.electronAPI = {
+      isElectron: true,
+      readDirectory: async (targetPath) => ({
+        files: [
+          { name: 'alpha', type: 'directory', path: `${targetPath}/alpha` },
+          { name: 'beta.txt', type: 'file', size: 10, path: `${targetPath}/beta.txt` },
+        ],
+      }),
     };
 
-    const result = await listDirectory(dir);
+    const result = await listDirectory({ kind: 'electron-directory', path: '/root' });
     expect(result.files).toEqual([
-      { name: 'normal.txt', type: 'file', size: 2, path: '/normal.txt' },
+      { name: 'alpha', type: 'directory', path: '/root/alpha' },
+      { name: 'beta.txt', type: 'file', size: 10, path: '/root/beta.txt' },
     ]);
+
+    delete globalThis.window.electronAPI;
+  });
+
+  it('handles error from readDirectory IPC', async () => {
+    globalThis.window = globalThis;
+    globalThis.window.electronAPI = {
+      isElectron: true,
+      readDirectory: async () => ({ error: 'Access denied' }),
+    };
+
+    await expect(listDirectory({ kind: 'electron-directory', path: '/restricted' })).rejects.toThrow('Access denied');
+
+    delete globalThis.window.electronAPI;
+  });
+});
+
+describe('openDirectory (Electron)', () => {
+  it('returns electron-directory object on folder pick', async () => {
+    globalThis.window = globalThis;
+    globalThis.window.electronAPI = {
+      isElectron: true,
+      selectDirectory: async () => 'C:\\Users\\Test\\Documents',
+    };
+
+    const handle = await openDirectory();
+    expect(handle).toEqual({
+      kind: 'electron-directory',
+      name: 'Documents',
+      path: 'C:\\Users\\Test\\Documents',
+    });
+
+    delete globalThis.window.electronAPI;
   });
 });
 

@@ -14,12 +14,11 @@
 
 * 📂 **Exploration de dossiers locaux** :
   * Intégration native Electron IPC pour l'accès direct au système de fichiers local.
-  * Fallback Web utilisant la *File System Access API* du navigateur.
   * Navigation fluide via fil d'ariane (breadcrumbs) et arborescence de fichiers.
 * 👁️ **Visualiseur & Prévisualisation Multi-Formats** :
   * 🖼️ **Images** : Prise en charge des formats `PNG`, `JPG`, `JPEG`, `GIF`, `WebP`, `SVG`, `BMP`, `ICO`, etc.
   * 📑 **PDF** : Affichage directement intégré dans l'interface.
-  * 📄 **Documents Word** : Extraction du texte brut des fichiers `.docx` grâce à `Mammoth`.
+  * 📄 **Documents Word** : Integration avec `docx-preview` / `Mammoth`.
   * 💻 **Code & Syntaxe** : Coloration syntaxique haute performance avec `Prism.js` (JavaScript, TypeScript, Python, C/C++, Java, C#, SQL, HTML, CSS, Bash, Rust, Go, etc.).
   * 📝 **Fichiers Texte & Config** : Lecture des fichiers `.txt`, `.csv`, `.log`, `.json`, `.yaml`, `.env`, `.ini`, etc., avec tronquage de sécurité au-delà de 1 Mo.
 * 📦 **Outil d'archivage intégré** :
@@ -35,7 +34,7 @@
 * **Langage & Logique** : Vanilla JavaScript ES6+ (Modules ES)
 * **Styling & UI** : [Tailwind CSS](https://tailwindcss.com/) & Icons SVG
 * **Coloration Syntaxique** : [Prism.js](https://prismjs.com/)
-* **Parsing de Documents** : [Mammoth.js](https://github.com/mwilliamson/mammoth.js/)
+* **Parsing de Documents** : [docx-preview](https://github.com/VolodymyrBaydalka/docx-preview) / [Mammoth.js](https://github.com/mwilliamson/mammoth.js/)
 * **Tests** : [Vitest](https://vitest.dev/)
 * **Packaging Desktop** : [Electron Builder](https://www.electron.build/)
 
@@ -50,13 +49,12 @@ DirectoryDisplayApp/
 │   └── preload.cjs         # Script d'isolation du contexte et d'exposition des API IPC
 ├── src/
 │   ├── filePreview.js      # Logique de détection des formats et gestionnaires de prévisualisation
-│   ├── filePreview.test.js # Tests unitaires des aperçus de fichiers
-│   ├── fileSystem.js       # Abstraction d'accès au FS (Electron vs Browser Web API)
-│   ├── fileSystem.test.js  # Tests unitaires de la gestion du système de fichiers
+│   ├── fileSystem.js       # Provider d'accès au FS natif Electron
 │   ├── icons.js            # Génération des icônes SVG dynamiques
 │   ├── index.css           # Styles CSS principaux et utilitaires Tailwind
 │   ├── main.js             # Logique applicative principale UI / DOM
 │   └── renderers.js        # Rendu des aperçus de fichiers (Images, PDF, Word, Code)
+├── tests/                  # Tests unitaires Vitest
 ├── index.html              # Point d'entrée HTML5
 ├── zip-project.js          # Script d'export en archive ZIP nettoyée
 ├── vite.config.js          # Configuration Vite & Vitest
@@ -85,14 +83,6 @@ Lance le serveur Vite de développement ainsi qu'Electron simultanément avec re
 
 ```bash
 npm run electron:dev
-```
-
-### 3. Lancement en mode Web (Vite uniquement)
-
-Pour tester l'application directement dans votre navigateur web :
-
-```bash
-npm run dev
 ```
 
 ---

@@ -107,6 +107,8 @@ ipcMain.handle('fs:readDirectory', async (_event, dirPath) => {
   }
 });
 
+const activeCopies = new Map();
+
 ipcMain.handle('fs:renameEntry', async (_event, oldPath, newPath) => {
   if (!oldPath || !newPath) {
     return { success: false, error: 'Chemin d\'accès invalide.', code: 'INVALID_PATH' };
@@ -150,6 +152,206 @@ ipcMain.handle('fs:renameEntry', async (_event, oldPath, newPath) => {
       success: false,
       error: `${errorMsg} Aucune autre modification n'a été effectuée.`,
       code: err.code || 'UNKNOWN',
+    };
+  }
+});
+
+ipcMain.handle('fs:copyEntry', async (event, { sourcePath, destDirPath, newName, copyId }) => {
+  if (!sourcePath || !destDirPath || !newName || !copyId) {
+    return { success: false, error: 'Paramètres invalides. Le fichier original n\'a pas été modifié.' };
+  }
+
+  let sourceStat;
+  try {
+    sourceStat = await fs.promises.stat(sourcePath);
+  } catch (err) {
+    return {
+      success: false,
+      error: 'Élément d\'origine introuvable ou inaccessible. Le fichier original n\'a pas été modifié.',
+      code: err.code || 'ENOENT',
+    };
+  }
+
+  let destStat;
+  try {
+    destStat = await fs.promises.stat(destDirPath);
+    if (!destStat.isDirectory()) {
+      return { success: false, error: 'Le dossier de destination n\'est pas valide. Le fichier original n\'a pas été modifié.' };
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: 'Le dossier de destination est introuvable ou inaccessible. Le fichier original n\'a pas été modifié.',
+      code: err.code || 'EACCES',
+    };
+  }
+
+  const normSource = path.normalize(sourcePath).toLowerCase();
+  const normDest = path.normalize(destDirPath).toLowerCase();
+
+  if (normDest === normSource) {
+    return {
+      success: false,
+      error: 'Ce dossier ne peut pas être copié à l\'intérieur de lui-même. Aucun fichier n\'a été modifié.',
+    };
+  }
+  if (sourceStat.isDirectory() && normDest.startsWith(normSource + path.sep)) {
+    return {
+      success: false,
+      error: 'Ce dossier ne peut pas être copié à l\'intérieur de l\'un de ses propres descendants. Aucun fichier n\'a été modifié.',
+    };
+  }
+
+  const targetPath = path.join(destDirPath, newName);
+  try {
+    await fs.promises.access(targetPath);
+    return {
+      success: false,
+      error: `Un ${sourceStat.isDirectory() ? 'dossier' : 'fichier'} portant ce nom existe déjà dans la destination. Aucun fichier n'a été modifié.`,
+      code: 'EEXIST',
+    };
+  } catch {
+    // Expected targetPath does not exist
+  }
+
+  activeCopies.set(copyId, { cancelled: false });
+
+  const notifyProgress = (data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('fs:copyProgress', { copyId, ...data });
+    }
+  };
+
+  try {
+    if (!sourceStat.isDirectory()) {
+      notifyProgress({ currentItem: newName, percentage: 30, copiedCount: 0, totalCount: 1 });
+
+      if (activeCopies.get(copyId)?.cancelled) {
+        throw { code: 'CANCELLED' };
+      }
+
+      await fs.promises.copyFile(sourcePath, targetPath);
+
+      if (activeCopies.get(copyId)?.cancelled) {
+        try { await fs.promises.unlink(targetPath); } catch {}
+        throw { code: 'CANCELLED' };
+      }
+
+      const checkStat = await fs.promises.stat(targetPath);
+      if (sourceStat.size > 0 && checkStat.size === 0) {
+        try { await fs.promises.unlink(targetPath); } catch {}
+        return { success: false, error: 'La copie créée est incomplète. Le fichier original n\'a pas été modifié.' };
+      }
+
+      notifyProgress({ currentItem: newName, percentage: 100, copiedCount: 1, totalCount: 1 });
+      return { success: true, targetPath: targetPath.replace(/\\/g, '/') };
+    } else {
+      const allEntries = [];
+      async function collectEntries(srcDir, relativePath = '') {
+        const entries = await fs.promises.readdir(srcDir, { withFileTypes: true });
+        for (const entry of entries) {
+          const entrySrc = path.join(srcDir, entry.name);
+          const entryRel = path.join(relativePath, entry.name);
+          allEntries.push({ src: entrySrc, rel: entryRel, isDir: entry.isDirectory() });
+          if (entry.isDirectory()) {
+            await collectEntries(entrySrc, entryRel);
+          }
+        }
+      }
+      await collectEntries(sourcePath);
+
+      const totalCount = allEntries.length + 1;
+      let copiedCount = 0;
+
+      await fs.promises.mkdir(targetPath, { recursive: true });
+      copiedCount++;
+      notifyProgress({ currentItem: newName, percentage: Math.round((copiedCount / totalCount) * 100), copiedCount, totalCount });
+
+      for (const item of allEntries) {
+        if (activeCopies.get(copyId)?.cancelled) {
+          throw { code: 'CANCELLED' };
+        }
+
+        const itemTarget = path.join(targetPath, item.rel);
+        if (item.isDir) {
+          await fs.promises.mkdir(itemTarget, { recursive: true });
+        } else {
+          await fs.promises.copyFile(item.src, itemTarget);
+        }
+
+        copiedCount++;
+        notifyProgress({ currentItem: item.rel, percentage: Math.round((copiedCount / totalCount) * 100), copiedCount, totalCount });
+      }
+
+      return { success: true, targetPath: targetPath.replace(/\\/g, '/') };
+    }
+  } catch (err) {
+    try {
+      if (fs.existsSync(targetPath)) {
+        await fs.promises.rm(targetPath, { recursive: true, force: true });
+      }
+    } catch {}
+
+    if (err && (err.code === 'CANCELLED' || activeCopies.get(copyId)?.cancelled)) {
+      return {
+        success: false,
+        cancelled: true,
+        error: 'La copie a été annulée. L’élément original n’a pas été modifié.',
+      };
+    }
+
+    let msg = 'La copie n\'a pas pu être créée.';
+    if (err.code === 'ENOSPC') {
+      msg = 'Espace disque insuffisant pour réaliser la copie.';
+    } else if (err.code === 'EACCES' || err.code === 'EPERM') {
+      msg = 'Accès refusé lors de la création de la copie.';
+    } else if (err.code === 'EBUSY') {
+      msg = 'Fichier verrouillé par une autre application.';
+    }
+    return {
+      success: false,
+      error: `${msg} Le fichier original n'a pas été modifié.`,
+      code: err.code || 'UNKNOWN',
+    };
+  } finally {
+    activeCopies.delete(copyId);
+  }
+});
+
+ipcMain.handle('fs:cancelCopy', async (_event, copyId) => {
+  if (copyId && activeCopies.has(copyId)) {
+    activeCopies.get(copyId).cancelled = true;
+    return { success: true };
+  }
+  return { success: false };
+});
+
+ipcMain.handle('fs:undoCopy', async (_event, copyPath) => {
+  if (!copyPath) {
+    return { success: false, error: 'Chemin d\'accès de la copie invalide.' };
+  }
+
+  try {
+    try {
+      await fs.promises.access(copyPath);
+    } catch {
+      return {
+        success: false,
+        error: 'L\'élément à annuler n\'existe plus ou a été déplacé. L\'annulation est impossible.',
+      };
+    }
+
+    if (shell && typeof shell.trashItem === 'function') {
+      await shell.trashItem(copyPath);
+      return { success: true };
+    } else {
+      await fs.promises.rm(copyPath, { recursive: true, force: true });
+      return { success: true };
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: `Impossible de placer la copie dans la Corbeille : ${err.message || 'Erreur d\'accès'}. L'élément original n'a pas été modifié.`,
     };
   }
 });

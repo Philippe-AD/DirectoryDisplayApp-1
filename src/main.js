@@ -2,10 +2,13 @@ import './index.css';
 import {
   openDirectory,
   listDirectory,
-  isElectron,
   getElectronFile,
   openExternalFile,
   renameFileOrDirectory,
+  copyFileOrDirectory,
+  cancelCopyOperation,
+  undoCopyOperation,
+  subscribeCopyProgress,
 } from './fileSystem';
 import {
   isTextFile,
@@ -14,7 +17,6 @@ import {
 } from './filePreview';
 import {
   renderWelcomeScreen,
-  renderFallbackUploadScreen,
   renderMainLayout,
 } from './renderers';
 import {
@@ -26,6 +28,10 @@ import {
   isExtensionModified,
   splitFileName,
 } from './renameValidation';
+import {
+  validateCopyTarget,
+  generateAutoCopyName,
+} from './copyValidation';
 
 export { sortNodePaths, getVisibleTreeNodes };
 
@@ -43,7 +49,6 @@ const state = {
   isPreviewPanelVisible: true,
   panelWidth: 380,
   isHeaderCollapsed: false,
-  usingFallback: false,
   objectUrl: null,
   isTreeVisible: true,
   showExternalOpenModal: false,
@@ -74,12 +79,37 @@ const state = {
     message: '',
   },
   renameErrorMessage: null,
+  copyModal: {
+    isOpen: false,
+    step: 'wizard', // 'wizard' | 'confirm' | 'progress' | 'success'
+    sourceItem: null,
+    destDirPath: '',
+    copyName: '',
+    validationError: null,
+    extensionWarning: null,
+    hasConflict: false,
+    progressState: { currentItem: '', percentage: 0, copiedCount: 0, totalCount: 0 },
+    resultState: { sourcePath: '', copyPath: '', copyName: '' },
+    copyId: null,
+  },
+  lastCopyUndoState: {
+    available: false,
+    copyPath: '',
+    copyName: '',
+    sourcePath: '',
+    isDir: false,
+    destDirPath: '',
+  },
+  copyUndoToast: {
+    visible: false,
+    message: '',
+  },
+  copyErrorMessage: null,
 };
 
 let previewRequestId = 0;
 let isKeyboardListenerAttached = false;
 let isFileProtectionListenersAttached = false;
-const handleMap = new Map(); // Map<path, handle>
 
 function attachFileProtectionListeners() {
   if (isFileProtectionListenersAttached) return;
@@ -116,15 +146,9 @@ function render() {
 
   const root = getAppElement();
 
-  if (!state.rootHandle && !state.usingFallback) {
+  if (!state.rootHandle) {
     root.innerHTML = renderWelcomeScreen(state.error);
     bindWelcomeEvents();
-    return;
-  }
-
-  if (state.usingFallback && state.nodes.size === 0) {
-    root.innerHTML = renderFallbackUploadScreen();
-    bindFallbackUploadEvents();
     return;
   }
 
@@ -143,7 +167,6 @@ function render() {
     visibleNodes,
     state.loading,
     state.search,
-    state.usingFallback,
     state.error,
     state.selectedItem,
     state.previewState,
@@ -156,7 +179,10 @@ function render() {
     state.theme,
     state.renameModal,
     state.undoToast,
-    state.renameErrorMessage
+    state.renameErrorMessage,
+    state.copyModal,
+    state.copyUndoToast,
+    state.copyErrorMessage
   );
 
   root.innerHTML = html;
@@ -198,25 +224,6 @@ async function renderDocxPreview(arrayBuffer, container) {
 
 function bindWelcomeEvents() {
   document.getElementById('btn-open-folder')?.addEventListener('click', handleOpenFolder);
-  document.getElementById('btn-use-fallback')?.addEventListener('click', () => {
-    state.usingFallback = true;
-    state.error = null;
-    render();
-  });
-}
-
-function bindFallbackUploadEvents() {
-  document.getElementById('input-fallback-files')?.addEventListener('change', (e) => {
-    const input = e.target;
-    if (input.files) {
-      handleFallbackFiles(input.files);
-    }
-  });
-  document.getElementById('btn-cancel-fallback')?.addEventListener('click', () => {
-    state.usingFallback = false;
-    state.error = null;
-    render();
-  });
 }
 
 export function openRenameModal(item = state.selectedItem) {
@@ -510,6 +517,301 @@ export async function handleUndoRename() {
   render();
 }
 
+export function openCopyModal(item = state.selectedItem) {
+  if (!item) return;
+
+  let defaultDest = item.parentPath || '';
+  if (!defaultDest && item.path) {
+    const parts = item.path.split(/[/\\]/).filter(Boolean);
+    if (parts.length > 1) {
+      parts.pop();
+      defaultDest = item.path.startsWith('/') ? '/' + parts.join('/') : parts.join('/');
+    } else {
+      defaultDest = item.path;
+    }
+  }
+  if (!defaultDest && state.rootPath) {
+    defaultDest = state.rootPath;
+  }
+
+  state.copyModal = {
+    isOpen: true,
+    step: 'wizard',
+    sourceItem: item,
+    destDirPath: defaultDest,
+    copyName: item.name,
+    validationError: null,
+    extensionWarning: null,
+    hasConflict: false,
+    conflictChoice: null,
+    progressState: { currentItem: '', percentage: 0, copiedCount: 0, totalCount: 0 },
+    resultState: { sourcePath: item.path, copyPath: '', copyName: item.name },
+    copyId: 'copy_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+  };
+
+  validateCurrentCopyInput();
+  render();
+
+  setTimeout(() => {
+    const inputEl = document.getElementById('input-copy-name');
+    if (inputEl) {
+      inputEl.focus();
+      if (item.type !== 'directory') {
+        const { baseName } = splitFileName(item.name);
+        if (baseName && baseName.length > 0) {
+          inputEl.setSelectionRange(0, baseName.length);
+        } else {
+          inputEl.select();
+        }
+      } else {
+        inputEl.select();
+      }
+    }
+  }, 50);
+}
+
+export function validateCurrentCopyInput() {
+  if (!state.copyModal.isOpen || !state.copyModal.sourceItem) return;
+
+  const item = state.copyModal.sourceItem;
+  const copyName = state.copyModal.copyName;
+  const destDirPath = state.copyModal.destDirPath;
+
+  const targetCheck = validateCopyTarget(item.path, destDirPath);
+  if (!targetCheck.isValid) {
+    state.copyModal.validationError = targetCheck.error;
+    state.copyModal.hasConflict = false;
+    state.copyModal.extensionWarning = null;
+    return;
+  }
+
+  const valRes = validateRename({
+    currentName: '',
+    newName: copyName,
+    isDirectory: item.type === 'directory',
+    parentChildrenNames: [],
+    parentPath: destDirPath,
+    maxPathLength: 260,
+  });
+
+  state.copyModal.validationError = valRes.isValid ? null : valRes.error;
+
+  const extRes = isExtensionModified(item.name, copyName, item.type === 'directory');
+  state.copyModal.extensionWarning = extRes.isModified
+    ? `Vous modifiez l’extension ${extRes.oldExt || 'du fichier'}. Le fichier pourrait ne plus s’ouvrir correctement.`
+    : null;
+
+  if (valRes.isValid) {
+    let destChildrenNames = [];
+    if (state.nodes.has(destDirPath)) {
+      const parentNode = state.nodes.get(destDirPath);
+      destChildrenNames = (parentNode.childrenPaths || [])
+        .map((cp) => state.nodes.get(cp)?.name)
+        .filter(Boolean);
+    }
+    const lowerCopyName = copyName.trim().toLowerCase();
+    const conflictExists = destChildrenNames.some(
+      (existingName) => existingName && existingName.toLowerCase() === lowerCopyName
+    );
+    state.copyModal.hasConflict = conflictExists;
+  } else {
+    state.copyModal.hasConflict = false;
+  }
+}
+
+export function closeCopyModal() {
+  state.copyModal = {
+    isOpen: false,
+    step: 'wizard',
+    sourceItem: null,
+    destDirPath: '',
+    copyName: '',
+    validationError: null,
+    extensionWarning: null,
+    hasConflict: false,
+    progressState: { currentItem: '', percentage: 0, copiedCount: 0, totalCount: 0 },
+    resultState: { sourcePath: '', copyPath: '', copyName: '' },
+    copyId: null,
+  };
+  render();
+}
+
+export async function handleChooseCopyDestination() {
+  if (!state.copyModal.isOpen) return;
+  try {
+    const handle = await openDirectory();
+    if (handle && handle.path) {
+      state.copyModal.destDirPath = handle.path;
+      validateCurrentCopyInput();
+      render();
+    }
+  } catch {
+    // Aborted or unavailable
+  }
+}
+
+export function handleApplyAutoCopyName() {
+  if (!state.copyModal.isOpen || !state.copyModal.sourceItem) return;
+  const item = state.copyModal.sourceItem;
+  const destDirPath = state.copyModal.destDirPath;
+  let destChildrenNames = [];
+  if (state.nodes.has(destDirPath)) {
+    const parentNode = state.nodes.get(destDirPath);
+    destChildrenNames = (parentNode.childrenPaths || [])
+      .map((cp) => state.nodes.get(cp)?.name)
+      .filter(Boolean);
+  }
+  const autoName = generateAutoCopyName(item.name, destChildrenNames, item.type === 'directory');
+  state.copyModal.copyName = autoName;
+  validateCurrentCopyInput();
+  render();
+}
+
+export function submitCopyWizardStep() {
+  validateCurrentCopyInput();
+  if (state.copyModal.validationError || state.copyModal.hasConflict) {
+    return;
+  }
+  state.copyModal.step = 'confirm';
+  render();
+}
+
+export async function executeCopy() {
+  if (!state.copyModal.isOpen || !state.copyModal.sourceItem) return;
+  if (state.copyModal.validationError || state.copyModal.hasConflict) return;
+
+  const { sourceItem, destDirPath, copyName, copyId } = state.copyModal;
+
+  state.copyModal.step = 'progress';
+  state.copyModal.progressState = {
+    currentItem: sourceItem.name,
+    percentage: 0,
+    copiedCount: 0,
+    totalCount: 1,
+  };
+  render();
+
+  const unsubscribeProgress = subscribeCopyProgress((data) => {
+    if (state.copyModal.isOpen && state.copyModal.copyId === data.copyId) {
+      state.copyModal.progressState = {
+        currentItem: data.currentItem || '',
+        percentage: data.percentage || 0,
+        copiedCount: data.copiedCount || 0,
+        totalCount: data.totalCount || 0,
+      };
+      const nameEl = document.getElementById('copy-progress-item-name');
+      if (nameEl) nameEl.textContent = data.currentItem || sourceItem.name;
+      const barEl = document.querySelector('#modal-copy-progress-overlay .bg-gradient-to-r');
+      if (barEl) barEl.style.width = `${data.percentage || 0}%`;
+    }
+  });
+
+  try {
+    const res = await copyFileOrDirectory({
+      sourcePath: sourceItem.path,
+      destDirPath,
+      newName: copyName,
+      copyId,
+    });
+
+    unsubscribeProgress();
+
+    if (res.cancelled) {
+      state.copyModal.isOpen = false;
+      state.copyErrorMessage = 'La copie a été annulée. L’élément original n’a pas été modifié.';
+      render();
+      return;
+    }
+
+    if (!res.success) {
+      state.copyModal.isOpen = false;
+      state.copyErrorMessage = res.error || 'La copie n\'a pas pu être créée. Le fichier original n\'a pas été modifié.';
+      render();
+      return;
+    }
+
+    const createdCopyPath = res.targetPath;
+
+    if (state.nodes.has(destDirPath)) {
+      await loadFolderContents(destDirPath, true);
+    }
+
+    state.copyModal.resultState = {
+      sourcePath: sourceItem.path,
+      copyPath: createdCopyPath,
+      copyName,
+    };
+    state.copyModal.step = 'success';
+
+    state.lastCopyUndoState = {
+      available: true,
+      copyPath: createdCopyPath,
+      copyName,
+      sourcePath: sourceItem.path,
+      isDir: sourceItem.type === 'directory',
+      destDirPath,
+    };
+
+    state.copyUndoToast = {
+      visible: true,
+      message: `La copie a été créée.`,
+    };
+
+    render();
+  } catch (err) {
+    unsubscribeProgress();
+    state.copyModal.isOpen = false;
+    state.copyErrorMessage = err instanceof Error ? err.message : 'La copie n\'a pas pu être créée. Le fichier original n\'a pas été modifié.';
+    render();
+  }
+}
+
+export async function handleCancelCopyInProgress() {
+  if (state.copyModal.copyId) {
+    await cancelCopyOperation(state.copyModal.copyId);
+  }
+}
+
+export async function handleUndoCopy() {
+  if (!state.lastCopyUndoState || !state.lastCopyUndoState.available) return;
+
+  const { copyPath, destDirPath } = state.lastCopyUndoState;
+
+  const res = await undoCopyOperation(copyPath);
+  if (!res.success) {
+    state.copyUndoToast.visible = false;
+    state.copyErrorMessage = res.error || "Impossible d'annuler la copie. L'élément original n'a pas été modifié.";
+    render();
+    return;
+  }
+
+  if (destDirPath && state.nodes.has(destDirPath)) {
+    await loadFolderContents(destDirPath, true);
+  }
+
+  state.lastCopyUndoState = { available: false };
+  state.copyUndoToast = {
+    visible: true,
+    message: "La copie a été annulée et placée dans la Corbeille. L'élément original est intact.",
+  };
+
+  render();
+}
+
+export function handleShowCreatedCopy() {
+  const copyPath = state.copyModal?.resultState?.copyPath || state.lastCopyUndoState?.copyPath;
+  state.copyModal.isOpen = false;
+
+  if (copyPath && state.nodes.has(copyPath)) {
+    const copyNode = state.nodes.get(copyPath);
+    if (copyNode) {
+      handleNodeSingleClick(copyNode);
+      setTimeout(scrollToSelectedNode, 100);
+    }
+  }
+  render();
+}
+
 function bindMainEvents() {
   document.getElementById('btn-dismiss-error')?.addEventListener('click', () => {
     state.error = null;
@@ -608,7 +910,6 @@ function bindMainEvents() {
     state.selectedItem = null;
     state.previewState = { status: 'idle', preview: null, error: null };
     updateObjectUrl(null);
-    handleMap.clear();
     render();
   });
 
@@ -677,6 +978,78 @@ function bindMainEvents() {
 
   document.getElementById('btn-rename-error-dismiss')?.addEventListener('click', () => {
     state.renameErrorMessage = null;
+    render();
+  });
+
+  document.getElementById('btn-trigger-copy')?.addEventListener('click', () => {
+    if (state.selectedItem) {
+      openCopyModal(state.selectedItem);
+    }
+  });
+
+  const copyInputEl = document.getElementById('input-copy-name');
+  if (copyInputEl) {
+    copyInputEl.addEventListener('input', (e) => {
+      state.copyModal.copyName = e.target.value;
+      validateCurrentCopyInput();
+      const submitBtn = document.getElementById('btn-copy-modal-next');
+      const errorEl = document.getElementById('copy-validation-error');
+      const conflictBox = document.getElementById('copy-conflict-box');
+
+      if (submitBtn) {
+        if (state.copyModal.validationError || state.copyModal.hasConflict) {
+          submitBtn.disabled = true;
+          submitBtn.className = 'px-4 py-2 rounded-xl text-xs font-medium bg-purple-400/40 text-purple-200/50 cursor-not-allowed transition-all';
+        } else {
+          submitBtn.disabled = false;
+          submitBtn.className = 'px-4 py-2 rounded-xl text-xs font-medium bg-purple-600 hover:bg-purple-500 text-white shadow-md focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all';
+        }
+      }
+
+      if (state.copyModal.validationError) {
+        if (!errorEl) {
+          render();
+        } else {
+          const spanEl = errorEl.querySelector('span');
+          if (spanEl) spanEl.textContent = state.copyModal.validationError;
+        }
+      } else if (errorEl || conflictBox || state.copyModal.hasConflict) {
+        render();
+      }
+    });
+  }
+
+  document.getElementById('btn-copy-browse-dest')?.addEventListener('click', handleChooseCopyDestination);
+  document.getElementById('btn-copy-conflict-edit')?.addEventListener('click', () => {
+    const inputEl = document.getElementById('input-copy-name');
+    if (inputEl) inputEl.focus();
+  });
+  document.getElementById('btn-copy-conflict-auto')?.addEventListener('click', handleApplyAutoCopyName);
+  document.getElementById('btn-copy-modal-cancel')?.addEventListener('click', closeCopyModal);
+  document.getElementById('btn-copy-modal-next')?.addEventListener('click', submitCopyWizardStep);
+  document.getElementById('btn-copy-confirm-back')?.addEventListener('click', () => {
+    state.copyModal.step = 'wizard';
+    render();
+  });
+  document.getElementById('btn-copy-confirm-execute')?.addEventListener('click', executeCopy);
+  document.getElementById('btn-copy-cancel-progress')?.addEventListener('click', handleCancelCopyInProgress);
+  document.getElementById('btn-copy-success-show')?.addEventListener('click', handleShowCreatedCopy);
+  document.getElementById('btn-copy-success-open-folder')?.addEventListener('click', () => {
+    if (state.copyModal?.destDirPath) {
+      openExternalFile(state.copyModal.destDirPath);
+    }
+    closeCopyModal();
+  });
+  document.getElementById('btn-copy-success-close')?.addEventListener('click', closeCopyModal);
+
+  document.getElementById('btn-undo-copy')?.addEventListener('click', handleUndoCopy);
+  document.getElementById('btn-dismiss-undo-copy-toast')?.addEventListener('click', () => {
+    state.copyUndoToast.visible = false;
+    render();
+  });
+
+  document.getElementById('btn-copy-error-dismiss')?.addEventListener('click', () => {
+    state.copyErrorMessage = null;
     render();
   });
 
@@ -820,11 +1193,28 @@ function attachGlobalKeyboardListener() {
       return;
     }
 
-    if (state.renameErrorMessage) {
+    if (state.copyErrorMessage) {
       if (e.key === 'Escape' || e.key === 'Enter') {
         e.preventDefault();
-        state.renameErrorMessage = null;
+        state.copyErrorMessage = null;
         render();
+      }
+      return;
+    }
+
+    if (state.copyModal?.isOpen) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeCopyModal();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (state.copyModal.step === 'wizard') {
+          submitCopyWizardStep();
+        } else if (state.copyModal.step === 'confirm') {
+          executeCopy();
+        } else if (state.copyModal.step === 'success') {
+          closeCopyModal();
+        }
       }
       return;
     }
@@ -964,22 +1354,9 @@ async function triggerFilePreview(node) {
   render();
 
   try {
-    let file = null;
-
-    if (state.usingFallback) {
-      file = node.file || null;
-    } else if (isElectron()) {
-      const isText = isTextFile({ name: node.name, type: '' });
-      const options = isText ? { maxBytes: MAX_TEXT_PREVIEW_BYTES } : undefined;
-      file = await getElectronFile(node.path, node.name, options);
-    } else {
-      const handle = handleMap.get(node.path);
-      if (handle && handle.kind === 'file') {
-        file = await handle.getFile();
-      } else if (node.file) {
-        file = node.file;
-      }
-    }
+    const isText = isTextFile({ name: node.name, type: '' });
+    const options = isText ? { maxBytes: MAX_TEXT_PREVIEW_BYTES } : undefined;
+    const file = await getElectronFile(node.path, node.name, options);
 
     if (currentReqId !== previewRequestId) return;
 
@@ -1039,23 +1416,8 @@ export async function loadFolderContents(path, forceReload = false) {
   render();
 
   try {
-    let dirDir = null;
-
-    if (state.usingFallback) {
-      // In fallback mode, nodes are already created
-      node.isLoading = false;
-      node.isLoaded = true;
-      render();
-      return;
-    }
-
-    if (isElectron()) {
-      dirDir = { kind: 'electron-directory', name: node.name, path: node.path };
-    } else {
-      dirDir = handleMap.get(path) || state.rootHandle;
-    }
-
-    const { files, handles } = await listDirectory(dirDir, node.path);
+    const dirDir = { kind: 'electron-directory', name: node.name, path: node.path };
+    const { files } = await listDirectory(dirDir, node.path);
 
     const childPaths = [];
     files.forEach((fileItem) => {
@@ -1078,11 +1440,6 @@ export async function loadFolderContents(path, forceReload = false) {
         error: null,
         childrenPaths: existingChild ? existingChild.childrenPaths : [],
       });
-
-      const handle = handles.find((h) => h.name === fileItem.name);
-      if (handle) {
-        handleMap.set(childPath, handle);
-      }
     });
 
     // Remove children no longer present on disk
@@ -1109,13 +1466,12 @@ async function handleOpenFolder() {
   state.error = null;
   try {
     const handle = await openDirectory();
-    const path = handle.kind === 'electron-directory' ? handle.path : `/${handle.name}`;
+    const path = handle.path;
 
     state.rootHandle = handle;
     state.rootPath = path;
     state.rootName = handle.name;
     state.nodes.clear();
-    handleMap.clear();
 
     const rootNode = {
       path,
@@ -1136,144 +1492,13 @@ async function handleOpenFolder() {
 
     await loadFolderContents(path);
   } catch (err) {
-    if (err instanceof Error && err.message === 'NOT_SUPPORTED') {
-      state.error = 'Your browser does not support the folder picker.';
-    } else if (err instanceof DOMException && err.name === 'AbortError') {
+    if (err instanceof DOMException && err.name === 'AbortError') {
       // Cancelled
     } else {
-      const isSecurityOrSystem = err instanceof DOMException &&
-        (err.name === 'SecurityError' || err.name === 'NotAllowedError');
-      state.error = isSecurityOrSystem
-        ? 'Ce dossier contient des fichiers système protégés par le navigateur. Vous pouvez utiliser le sélecteur alternatif.'
-        : (err instanceof Error ? err.message : 'Could not open that folder.');
+      state.error = err instanceof Error ? err.message : 'Impossible d\'ouvrir le dossier sélectionné.';
     }
     render();
   }
-}
-
-function handleFallbackFiles(fileList) {
-  state.nodes.clear();
-  handleMap.clear();
-
-  let rootFolderName = '';
-  const folderMap = new Map();
-
-  const getOrCreateFolderMap = (dirPath) => {
-    let map = folderMap.get(dirPath);
-    if (!map) {
-      map = new Map();
-      folderMap.set(dirPath, map);
-    }
-    return map;
-  };
-
-  Array.from(fileList).forEach((f) => {
-    const rawRel = f.webkitRelativePath || f.name;
-    const rel = rawRel.startsWith('/') ? rawRel : `/${rawRel}`;
-    const parts = rel.split('/').filter(Boolean);
-
-    if (parts.length > 0 && !rootFolderName) {
-      rootFolderName = parts[0];
-    }
-
-    const rootPath = `/${rootFolderName || 'Files'}`;
-
-    if (parts.length <= 1) {
-      getOrCreateFolderMap(rootPath).set(f.name, {
-        path: rel,
-        name: f.name,
-        type: 'file',
-        size: f.size,
-        file: f,
-        parentPath: rootPath,
-        level: 1,
-        isExpanded: false,
-        isLoaded: true,
-        isLoading: false,
-        error: null,
-        childrenPaths: [],
-      });
-    } else {
-      let currentDirPath = `/${parts[0]}`;
-      for (let i = 1; i < parts.length; i++) {
-        const isLast = i === parts.length - 1;
-        const partName = parts[i];
-        if (isLast) {
-          getOrCreateFolderMap(currentDirPath).set(partName, {
-            path: rel,
-            name: partName,
-            type: 'file',
-            size: f.size,
-            file: f,
-            parentPath: currentDirPath,
-            level: i,
-            isExpanded: false,
-            isLoaded: true,
-            isLoading: false,
-            error: null,
-            childrenPaths: [],
-          });
-        } else {
-          const subDirPath = `${currentDirPath}/${partName}`;
-          const currentMap = getOrCreateFolderMap(currentDirPath);
-          if (!currentMap.has(partName)) {
-            currentMap.set(partName, {
-              path: subDirPath,
-              name: partName,
-              type: 'directory',
-              parentPath: currentDirPath,
-              level: i,
-              isExpanded: false,
-              isLoaded: true,
-              isLoading: false,
-              error: null,
-              childrenPaths: [],
-            });
-          }
-          currentDirPath = subDirPath;
-        }
-      }
-    }
-  });
-
-  const rootPath = `/${rootFolderName || 'Files'}`;
-  const rootNode = {
-    path: rootPath,
-    name: rootFolderName || 'Files',
-    type: 'directory',
-    parentPath: null,
-    level: 0,
-    isExpanded: true,
-    isLoaded: true,
-    isLoading: false,
-    error: null,
-    childrenPaths: [],
-  };
-
-  state.nodes.set(rootPath, rootNode);
-  state.treeRootPath = rootPath;
-
-  folderMap.forEach((childrenMap, dirPath) => {
-    const parentNode = state.nodes.get(dirPath);
-    const childPaths = [];
-    childrenMap.forEach((childNode) => {
-      state.nodes.set(childNode.path, childNode);
-      childPaths.push(childNode.path);
-    });
-
-    if (parentNode) {
-      parentNode.childrenPaths = childPaths;
-    }
-  });
-
-  state.usingFallback = true;
-  state.rootHandle = null;
-  state.search = '';
-  state.error = null;
-  state.selectedItem = null;
-  state.previewState = { status: 'idle', preview: null };
-  updateObjectUrl(null);
-  render();
 }
 
 // Initial render

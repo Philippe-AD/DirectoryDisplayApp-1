@@ -46,10 +46,21 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
             </div>
           </div>
           <button
-            id="btn-trigger-rename"
+            id="btn-trigger-copy"
             type="button"
             data-item-path="${escapeHtml(selectedItem.path)}"
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-[11px] font-medium text-white transition-colors shadow-2xs flex-shrink-0"
+            title="Créer une copie de ce dossier…"
+            aria-label="Créer une copie de ce dossier"
+          >
+            ${icons.copy({ size: 14 })}
+            <span>Créer une copie…</span>
+          </button>
+          <button
+            id="btn-trigger-rename"
+            type="button"
+            data-item-path="${escapeHtml(selectedItem.path)}"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-[11px] font-medium text-slate-200 transition-colors shadow-2xs flex-shrink-0"
             title="Renommer ce dossier (F2)"
             aria-label="Renommer ce dossier"
           >
@@ -285,10 +296,22 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
 
         <div class="flex items-center gap-2 flex-shrink-0">
           <button
-            id="btn-trigger-rename"
+            id="btn-trigger-copy"
             type="button"
             data-item-path="${escapeHtml(selectedItem.path)}"
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-[11px] font-medium text-white transition-colors shadow-2xs flex-shrink-0"
+            title="Créer une copie de ce fichier…"
+            aria-label="Créer une copie de ce fichier"
+          >
+            ${icons.copy({ size: 14 })}
+            <span class="hidden sm:inline">Créer une copie…</span>
+          </button>
+
+          <button
+            id="btn-trigger-rename"
+            type="button"
+            data-item-path="${escapeHtml(selectedItem.path)}"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-[11px] font-medium text-slate-200 transition-colors shadow-2xs flex-shrink-0"
             title="Renommer ce fichier (F2)"
             aria-label="Renommer ce fichier"
           >

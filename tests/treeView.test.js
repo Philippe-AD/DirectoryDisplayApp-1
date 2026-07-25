@@ -296,7 +296,6 @@ describe('Main Layout Resizing & Structure', () => {
       nodes,
       false,
       '',
-      false,
       null,
       null,
       { status: 'idle' },

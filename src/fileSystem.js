@@ -1,39 +1,29 @@
 import { getMimeType } from './filePreview';
 
-// File system access abstraction supporting both Electron native API and browser File System Access API.
+// Native Electron File System Provider
 
 export function isElectron() {
   return typeof window !== 'undefined' && Boolean(window.electronAPI?.isElectron);
 }
 
-export function isFileSystemAccessSupported() {
-  if (isElectron()) return true;
-  return typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
-}
-
 export async function openDirectory() {
-  if (isElectron()) {
-    const selectedPath = await window.electronAPI.selectDirectory();
-    if (!selectedPath) {
-      throw new DOMException('The user aborted a request.', 'AbortError');
-    }
-    const name = selectedPath.split(/[/\\]/).filter(Boolean).pop() || selectedPath;
-    return {
-      kind: 'electron-directory',
-      name,
-      path: selectedPath,
-    };
+  if (!window.electronAPI?.selectDirectory) {
+    throw new Error('ELECTRON_IPC_NOT_AVAILABLE');
   }
-
-  if (!isFileSystemAccessSupported()) {
-    throw new Error('NOT_SUPPORTED');
+  const selectedPath = await window.electronAPI.selectDirectory();
+  if (!selectedPath) {
+    throw new DOMException('The user aborted a request.', 'AbortError');
   }
-  const handle = await window.showDirectoryPicker({ mode: 'read' });
-  return handle;
+  const name = selectedPath.split(/[/\\]/).filter(Boolean).pop() || selectedPath;
+  return {
+    kind: 'electron-directory',
+    name,
+    path: selectedPath,
+  };
 }
 
 export async function getElectronFile(filePath, fileName, options = {}) {
-  if (!isElectron() || !window.electronAPI) return null;
+  if (!window.electronAPI?.readFileBuffer) return null;
   const res = await window.electronAPI.readFileBuffer(filePath, options);
   if (!res) return null;
 
@@ -52,88 +42,68 @@ export async function getElectronFile(filePath, fileName, options = {}) {
 }
 
 export async function listDirectory(dir, parentPath = '') {
-  if (dir.kind === 'electron-directory') {
-    const targetPath = parentPath || dir.path;
-    const res = await window.electronAPI.readDirectory(targetPath);
-    if (res.error) {
-      throw new Error(res.error);
-    }
-    return {
-      files: res.files,
-      handles: [],
-    };
+  const targetPath = parentPath || (dir && dir.path) || '';
+  if (!window.electronAPI?.readDirectory) {
+    return { files: [], handles: [] };
   }
-
-  const files = [];
-  const handles = [];
-
-  try {
-    const iterator = dir.values();
-    while (true) {
-      let nextItem;
-      try {
-        nextItem = await iterator.next();
-      } catch (err) {
-        console.warn('Skipping unreadable system entry:', err);
-        break;
-      }
-
-      if (nextItem.done) break;
-      const entry = nextItem.value;
-
-      handles.push(entry);
-      const childPath = parentPath ? `${parentPath}/${entry.name}` : `/${entry.name}`;
-
-      if (entry.kind === 'directory') {
-        files.push({
-          name: entry.name,
-          type: 'directory',
-          path: childPath,
-        });
-      } else {
-        let size = undefined;
-        try {
-          const file = await entry.getFile();
-          size = file.size;
-        } catch {
-          // Keep entry even if metadata fails
-        }
-
-        files.push({
-          name: entry.name,
-          type: 'file',
-          size,
-          path: childPath,
-        });
-      }
-    }
-  } catch (err) {
-    console.warn('Skipping unreadable directory values iterator:', err);
+  const res = await window.electronAPI.readDirectory(targetPath);
+  if (res.error) {
+    throw new Error(res.error);
   }
-
-  files.sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
-  });
-
-  return { files, handles };
+  return {
+    files: res.files || [],
+    handles: [],
+  };
 }
 
 export async function openExternalFile(filePath) {
-  if (isElectron() && window.electronAPI?.openExternal) {
+  if (window.electronAPI?.openExternal) {
     return await window.electronAPI.openExternal(filePath);
   }
   return { success: true };
 }
 
 export async function renameFileOrDirectory(oldPath, newPath) {
-  if (isElectron() && window.electronAPI?.renameEntry) {
+  if (window.electronAPI?.renameEntry) {
     return await window.electronAPI.renameEntry(oldPath, newPath);
   }
   return {
     success: false,
-    error: "La modification du système de fichiers n'est pas prise en charge dans cet environnement. Aucune autre modification n'a été effectuée.",
+    error: "La modification du système de fichiers n'est pas disponible.",
   };
 }
 
+export async function copyFileOrDirectory(options) {
+  if (window.electronAPI?.copyEntry) {
+    return await window.electronAPI.copyEntry(options);
+  }
+  return {
+    success: false,
+    error: "La création de copie n'est pas disponible.",
+  };
+}
+
+export async function cancelCopyOperation(copyId) {
+  if (window.electronAPI?.cancelCopy) {
+    return await window.electronAPI.cancelCopy(copyId);
+  }
+  return { success: false };
+}
+
+export async function undoCopyOperation(copyPath) {
+  if (window.electronAPI?.undoCopy) {
+    return await window.electronAPI.undoCopy(copyPath);
+  }
+  return {
+    success: false,
+    error: "L'annulation de la copie n'est pas disponible.",
+  };
+}
+
+export function subscribeCopyProgress(callback) {
+  if (window.electronAPI?.onCopyProgress) {
+    return window.electronAPI.onCopyProgress(callback);
+  }
+  return () => {};
+}
 

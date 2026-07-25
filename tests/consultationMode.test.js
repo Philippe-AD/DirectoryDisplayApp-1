@@ -17,7 +17,6 @@ describe('1. Permanent Protected Mode Indicator', () => {
       [],
       false,
       '',
-      false,
       null,
       null,
       { status: 'idle' },
@@ -25,8 +24,7 @@ describe('1. Permanent Protected Mode Indicator', () => {
       true,
       380,
       false,
-      true,
-      false
+      true
     );
 
     expect(html).toContain('id="consultation-mode-indicator"');
@@ -42,7 +40,6 @@ describe('1. Permanent Protected Mode Indicator', () => {
       [],
       false,
       '',
-      false,
       null,
       null,
       { status: 'idle' },
@@ -50,8 +47,7 @@ describe('1. Permanent Protected Mode Indicator', () => {
       true,
       380,
       true,  // collapsed header
-      false, // hidden tree
-      false
+      false  // hidden tree
     );
 
     expect(htmlHiddenTree).toContain('id="consultation-mode-indicator"');
@@ -116,7 +112,6 @@ describe('3. Clarified Action Labels', () => {
       [],
       false,
       '',
-      false,
       null,
       null,
       { status: 'idle' },
@@ -133,7 +128,6 @@ describe('3. Clarified Action Labels', () => {
       [],
       false,
       '',
-      false,
       null,
       null,
       { status: 'idle' },

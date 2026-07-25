@@ -7,7 +7,14 @@ const api = {
   readFileBuffer: (filePath, options) => ipcRenderer.invoke('fs:readFileBuffer', filePath, options),
   openExternal: (filePath) => ipcRenderer.invoke('app:openExternal', filePath),
   renameEntry: (oldPath, newPath) => ipcRenderer.invoke('fs:renameEntry', oldPath, newPath),
+  copyEntry: (options) => ipcRenderer.invoke('fs:copyEntry', options),
+  cancelCopy: (copyId) => ipcRenderer.invoke('fs:cancelCopy', copyId),
+  undoCopy: (copyPath) => ipcRenderer.invoke('fs:undoCopy', copyPath),
+  onCopyProgress: (callback) => {
+    const listener = (_event, data) => callback(data);
+    ipcRenderer.on('fs:copyProgress', listener);
+    return () => ipcRenderer.removeListener('fs:copyProgress', listener);
+  },
 };
-
 
 contextBridge.exposeInMainWorld('electronAPI', api);
