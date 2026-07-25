@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getElectronFile, listDirectory } from './fileSystem';
+import { getElectronFile, listDirectory } from '../src/fileSystem';
 
 function directoryWith(entries) {
   return {

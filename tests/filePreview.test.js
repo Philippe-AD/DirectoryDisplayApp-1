@@ -12,8 +12,8 @@ import {
   isWordFile,
   readFilePreview,
   readTextPreview,
-} from './filePreview';
-import { renderPreviewPanel } from './renderers';
+} from '../src/filePreview';
+import { renderPreviewPanel } from '../src/renderers';
 
 describe('file previews', () => {
   it('recognizes image files by MIME type or extension', () => {

@@ -4,7 +4,7 @@ import {
   renderPreviewPanel,
   renderTreeNode,
   formatFileSize,
-} from './renderers';
+} from '../src/renderers';
 
 describe('renderers & UI layout', () => {
   it('formats file sizes accurately', () => {

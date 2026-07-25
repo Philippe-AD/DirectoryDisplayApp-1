@@ -4,10 +4,10 @@ import {
   renderPreviewPanel,
   renderTreeNode,
   renderExternalOpenModal,
-} from './renderers';
+} from '../src/renderers';
 import {
   getVisibleTreeNodes,
-} from './main';
+} from '../src/main';
 
 describe('1. Permanent Consultation Mode Indicator', () => {
   it('renders permanent consultation indicator with lock icon and exact reassuring text', () => {

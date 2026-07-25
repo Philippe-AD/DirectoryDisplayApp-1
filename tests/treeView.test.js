@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getVisibleTreeNodes, sortNodePaths } from './main';
-import { renderTreeNode, renderTreeView, renderPreviewPanel, renderMainLayout } from './renderers';
+import { getVisibleTreeNodes, sortNodePaths } from '../src/main';
+import { renderTreeNode, renderTreeView, renderPreviewPanel, renderMainLayout } from '../src/renderers';
 
 describe('TreeView Progressive Lazy Loading & Caching', () => {
   it('loads initial root contents only and does not recursively load subfolder children', () => {
