@@ -544,7 +544,7 @@ export function renderMainLayout(
         </aside>
 
         <!-- Zone 1: Unique TreeView Navigation Sidebar -->
-        <div id="file-list-container" class="${isTreeVisible ? 'flex' : 'hidden'} flex-col min-w-[240px] max-w-[600px] h-full overflow-hidden ${isLight ? 'bg-[#F8FAFC] text-slate-800 border-r border-slate-200/80 shadow-2xs' : 'bg-[#161426] text-slate-200 border-r border-purple-500/15 shadow-xl dark-sidebar'}">
+        <div id="file-list-container" class="${isTreeVisible ? 'flex' : 'hidden'} flex-col min-w-[240px] flex-1 h-full overflow-hidden ${isLight ? 'bg-[#F8FAFC] text-slate-800 border-r border-slate-200/80 shadow-2xs' : 'bg-[#161426] text-slate-200 border-r border-purple-500/15 shadow-xl dark-sidebar'}">
           <!-- Sidebar Header & Search input bar -->
           <div class="p-3 ${isLight ? 'border-b border-slate-200/80 bg-[#F8FAFC]' : 'border-b border-purple-500/15 bg-[#161426]'} flex-shrink-0">
             <div class="flex items-center justify-between mb-2">
@@ -614,8 +614,8 @@ export function renderMainLayout(
         <!-- Zone 3: Integrated Preview & Main Content Container -->
         <div
           id="preview-panel-container"
-          class="${isPanelVisible ? 'flex' : 'hidden'} flex-col min-w-[300px] ${isPanelVisible ? 'w-full md:w-auto' : ''} flex-1 h-full overflow-hidden ${isLight ? 'bg-[#F1F3F6]' : 'bg-[#F8F9FE]'}"
-          style="${isPanelVisible && isTreeVisible ? `width: ${panelWidth}px; flex: 1 1 ${panelWidth}px;` : ''}"
+          class="${isPanelVisible ? 'flex' : 'hidden'} flex-col min-w-[300px] ${isPanelVisible && !isTreeVisible ? 'flex-1 w-full' : ''} h-full overflow-hidden ${isLight ? 'bg-[#F1F3F6]' : 'bg-[#F8F9FE]'}"
+          style="${isPanelVisible && isTreeVisible ? `width: ${panelWidth}px; flex: 0 0 ${panelWidth}px;` : ''}"
         >
           ${renderPreviewPanel(selectedItem, previewState, objectUrl)}
         </div>

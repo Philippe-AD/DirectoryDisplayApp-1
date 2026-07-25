@@ -82,9 +82,11 @@ describe('renderers & UI layout', () => {
     );
 
     expect(html).toContain('id="file-list-container"');
+    expect(html).toContain('flex-1');
     expect(html).toContain('id="resizer"');
     expect(html).toContain('id="preview-panel-container"');
     expect(html).toContain('width: 380px;');
+    expect(html).toContain('flex: 0 0 380px;');
     expect(html).toContain('README.md');
     expect(html).toContain('Aperçu contenu');
   });

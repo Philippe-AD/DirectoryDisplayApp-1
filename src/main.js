@@ -721,16 +721,24 @@ function setupResizer() {
   let startX = 0;
   let startWidth = state.panelWidth;
 
-  const onMouseMove = (e) => {
-    const delta = startX - e.clientX;
+  const updateWidth = (clientX) => {
+    const delta = startX - clientX;
     const minWidth = 300;
     const maxWidth = Math.max(minWidth, window.innerWidth - 280);
     const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + delta));
     state.panelWidth = newWidth;
     previewPanelContainer.style.width = `${newWidth}px`;
+    previewPanelContainer.style.flex = `0 0 ${newWidth}px`;
+  };
+
+  const onMouseMove = (e) => {
+    updateWidth(e.clientX);
   };
 
   const onMouseUp = () => {
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    previewPanelContainer.style.pointerEvents = '';
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
   };
@@ -739,8 +747,60 @@ function setupResizer() {
     e.preventDefault();
     startX = e.clientX;
     startWidth = state.panelWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    previewPanelContainer.style.pointerEvents = 'none';
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
+  });
+
+  const getTouchX = (e) => (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+
+  const onTouchMove = (e) => {
+    updateWidth(getTouchX(e));
+  };
+
+  const onTouchEnd = () => {
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    previewPanelContainer.style.pointerEvents = '';
+    window.removeEventListener('touchmove', onTouchMove);
+    window.removeEventListener('touchend', onTouchEnd);
+  };
+
+  resizer.addEventListener('touchstart', (e) => {
+    startX = getTouchX(e);
+    startWidth = state.panelWidth;
+    document.body.style.userSelect = 'none';
+    previewPanelContainer.style.pointerEvents = 'none';
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd);
+  }, { passive: true });
+
+  resizer.addEventListener('keydown', (e) => {
+    const minWidth = 300;
+    const maxWidth = Math.max(minWidth, window.innerWidth - 280);
+    let newWidth = state.panelWidth;
+
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      newWidth = Math.min(maxWidth, state.panelWidth + 20);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      newWidth = Math.max(minWidth, state.panelWidth - 20);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      newWidth = minWidth;
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      newWidth = maxWidth;
+    }
+
+    if (newWidth !== state.panelWidth) {
+      state.panelWidth = newWidth;
+      previewPanelContainer.style.width = `${newWidth}px`;
+      previewPanelContainer.style.flex = `0 0 ${newWidth}px`;
+    }
   });
 }
 
