@@ -1,4 +1,7 @@
 export const MAX_TEXT_PREVIEW_BYTES = 1024 * 1024;
+export const RECOMMENDED_MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+export const ABSOLUTE_MAX_IMAGE_BYTES = 100 * 1024 * 1024;
+export const MAX_DOCX_PREVIEW_BYTES = 20 * 1024 * 1024;
 
 const SYNTAX_LANGUAGE_BY_EXTENSION = {
   py: 'python',
@@ -94,6 +97,7 @@ const VIDEO_EXTENSIONS = new Set([
 ]);
 
 export function getFileExtension(name) {
+  if (!name || typeof name !== 'string') return '';
   const dotIndex = name.lastIndexOf('.');
   return dotIndex >= 0 ? name.slice(dotIndex + 1).toLowerCase() : '';
 }
@@ -124,25 +128,30 @@ export function getMimeType(fileName) {
 }
 
 export function isImageFile(file) {
+  if (!file) return false;
   const extension = getFileExtension(file.name);
   return (file.type && file.type.startsWith('image/')) || IMAGE_EXTENSIONS.has(extension);
 }
 
 export function isAudioFile(file) {
+  if (!file) return false;
   const extension = getFileExtension(file.name);
   return (file.type && file.type.startsWith('audio/')) || AUDIO_EXTENSIONS.has(extension);
 }
 
 export function isVideoFile(file) {
+  if (!file) return false;
   const extension = getFileExtension(file.name);
   return (file.type && file.type.startsWith('video/')) || VIDEO_EXTENSIONS.has(extension);
 }
 
 export function isPdfFile(file) {
+  if (!file) return false;
   return file.type === 'application/pdf' || getFileExtension(file.name) === 'pdf';
 }
 
 export function isWordFile(file) {
+  if (!file) return false;
   const extension = getFileExtension(file.name);
   return extension === 'doc' || extension === 'docx'
     || file.type === 'application/msword'
@@ -154,45 +163,118 @@ export function getSyntaxLanguage(name) {
 }
 
 export function isTextFile(file) {
+  if (!file) return false;
   const extension = getFileExtension(file.name);
   return (file.type && file.type.startsWith('text/'))
     || getSyntaxLanguage(file.name) !== null
     || PLAIN_TEXT_EXTENSION.has(extension);
 }
 
-export async function readTextPreview(file) {
-  if (!isTextFile(file)) return null;
+export async function readTextPreview(fileOrMetadata, textBufferFetcher) {
+  if (!fileOrMetadata) return null;
+  const name = fileOrMetadata.name || '';
+  if (!isTextFile({ name, type: fileOrMetadata.type || '' })) return null;
 
-  try {
-    const totalSize = typeof file.totalSize === 'number' ? file.totalSize : file.size;
-    const truncated = totalSize > MAX_TEXT_PREVIEW_BYTES;
-    const content = await file.slice(0, MAX_TEXT_PREVIEW_BYTES).text();
+  const totalSize = typeof fileOrMetadata.size === 'number'
+    ? fileOrMetadata.size
+    : (typeof fileOrMetadata.totalSize === 'number' ? fileOrMetadata.totalSize : 0);
 
+  if (totalSize > MAX_TEXT_PREVIEW_BYTES) {
     return {
-      content,
-      truncated,
+      kind: 'text-too-large',
+      content: '',
+      truncated: true,
       totalSize,
     };
+  }
+
+  try {
+    if (typeof textBufferFetcher === 'function') {
+      const res = await textBufferFetcher(fileOrMetadata.path);
+      if (!res || !res.success) {
+        return null;
+      }
+      const text = new TextDecoder().decode(res.buffer);
+      return {
+        kind: 'text',
+        content: text,
+        truncated: Boolean(res.truncated),
+        totalSize,
+      };
+    } else if (typeof fileOrMetadata.slice === 'function') {
+      const content = await fileOrMetadata.slice(0, MAX_TEXT_PREVIEW_BYTES).text();
+      return {
+        kind: 'text',
+        content,
+        truncated: totalSize > MAX_TEXT_PREVIEW_BYTES,
+        totalSize,
+      };
+    }
   } catch (err) {
     console.error('Failed to read text preview:', err);
     return null;
   }
+  return null;
 }
 
-export async function readFilePreview(file) {
-  if (isImageFile(file)) return { kind: 'image' };
-  if (isAudioFile(file)) return { kind: 'audio' };
-  if (isVideoFile(file)) return { kind: 'video' };
-  if (isPdfFile(file)) return { kind: 'pdf' };
+export async function readFilePreview(metadata, fetchers = {}) {
+  if (!metadata) return { kind: 'unsupported' };
+  const name = metadata.name || '';
+  const size = typeof metadata.size === 'number'
+    ? metadata.size
+    : (typeof metadata.totalSize === 'number' ? metadata.totalSize : 0);
+  const ext = getFileExtension(name);
 
-  if (isWordFile(file)) {
-    const ext = getFileExtension(file.name);
-    if (ext !== 'docx' && file.type !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+  if (isImageFile({ name, type: metadata.type || '' })) {
+    if (size > ABSOLUTE_MAX_IMAGE_BYTES) {
+      return { kind: 'image-too-large', totalSize: size };
+    }
+    if (size > RECOMMENDED_MAX_IMAGE_BYTES) {
+      return { kind: 'image-warning', totalSize: size, mediaUrl: metadata.mediaUrl };
+    }
+    return { kind: 'image', totalSize: size, mediaUrl: metadata.mediaUrl };
+  }
+
+  if (isAudioFile({ name, type: metadata.type || '' })) {
+    return { kind: 'audio', totalSize: size, mediaUrl: metadata.mediaUrl };
+  }
+
+  if (isVideoFile({ name, type: metadata.type || '' })) {
+    return { kind: 'video', totalSize: size, mediaUrl: metadata.mediaUrl };
+  }
+
+  if (isPdfFile({ name, type: metadata.type || '' })) {
+    return { kind: 'pdf', totalSize: size, mediaUrl: metadata.mediaUrl };
+  }
+
+  if (isWordFile({ name, type: metadata.type || '' })) {
+    if (ext !== 'docx' && metadata.type !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
       return { kind: 'unsupported-word' };
     }
 
+    if (size > MAX_DOCX_PREVIEW_BYTES) {
+      return { kind: 'docx-too-large', totalSize: size };
+    }
+
     try {
-      const arrayBuffer = await file.arrayBuffer();
+      let arrayBuffer = null;
+      if (typeof fetchers.readDocxBuffer === 'function') {
+        const res = await fetchers.readDocxBuffer(metadata.path);
+        if (res && res.success && res.buffer) {
+          arrayBuffer = res.buffer;
+        } else if (res && res.code === 'FILE_TOO_LARGE') {
+          return { kind: 'docx-too-large', totalSize: size };
+        } else {
+          return { kind: 'word-error' };
+        }
+      } else if (typeof metadata.arrayBuffer === 'function') {
+        arrayBuffer = await metadata.arrayBuffer();
+      } else if (metadata.arrayBuffer instanceof ArrayBuffer) {
+        arrayBuffer = metadata.arrayBuffer;
+      }
+
+      if (!arrayBuffer) return { kind: 'word-error' };
+
       const uint8 = new Uint8Array(arrayBuffer);
       if (uint8.length < 4 || uint8[0] !== 0x50 || uint8[1] !== 0x4b) {
         return { kind: 'word-error' };
@@ -200,19 +282,26 @@ export async function readFilePreview(file) {
       return {
         kind: 'word-docx',
         arrayBuffer,
+        totalSize: size,
       };
     } catch {
       return { kind: 'word-error' };
     }
   }
 
-  const textPreview = await readTextPreview(file);
-  return textPreview === null
-    ? { kind: 'unsupported' }
-    : {
-        kind: 'text',
-        content: textPreview.content,
-        truncated: textPreview.truncated,
-        totalSize: textPreview.totalSize,
+  if (isTextFile({ name, type: metadata.type || '' })) {
+    if (size > MAX_TEXT_PREVIEW_BYTES) {
+      return {
+        kind: 'text-too-large',
+        totalSize: size,
       };
+    }
+    const textPreview = await readTextPreview(metadata, fetchers.readTextBuffer);
+    if (!textPreview) {
+      return { kind: 'error', error: 'Impossible de lire le fichier texte.' };
+    }
+    return textPreview;
+  }
+
+  return { kind: 'unsupported', totalSize: size };
 }

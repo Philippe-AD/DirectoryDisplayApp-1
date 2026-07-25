@@ -1,6 +1,52 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
+const crypto = require('crypto');
+const { checkFileOperation, inspectItemAttributes, isDriveRoot } = require('./security/fileOperationPolicy.cjs');
+
+function logSecurityPolicyViolation(operation, code, failedStep, details = {}) {
+  const timestamp = new Date().toISOString();
+  console.warn(`[SECURITY_POLICY_REFUSAL] ${timestamp} | Op: ${operation} | Code: ${code} | Step: ${failedStep}`, details);
+}
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'app-media',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+]);
+
+const activePreviewTokens = new Map();
+
+function validatePathAccess(targetPath) {
+  if (typeof targetPath !== 'string' || !targetPath) {
+    return { valid: false, reason: 'INVALID_PATH' };
+  }
+
+  if (targetPath.includes('\0')) {
+    return { valid: false, reason: 'NULL_BYTE_DETECTED' };
+  }
+
+  const normalized = path.normalize(targetPath);
+
+  if (!path.isAbsolute(normalized)) {
+    return { valid: false, reason: 'RELATIVE_PATH_REFUSED' };
+  }
+
+  const resolved = path.resolve(normalized);
+  if (resolved !== normalized && resolved.toLowerCase() !== normalized.toLowerCase()) {
+    return { valid: false, reason: 'PATH_TRAVERSAL_DETECTED' };
+  }
+
+  return { valid: true, normalizedPath: normalized };
+}
 
 let mainWindow = null;
 
@@ -10,7 +56,7 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    title: 'Directory Display App',
+    title: 'DirectoryDisplayApp',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -22,9 +68,11 @@ function createWindow() {
 
   mainWindow.maximize();
 
-  const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
+  const isPreview = process.argv.includes('--preview') || process.env.NODE_ENV === 'production';
+  const isDev = !app.isPackaged && !isPreview && (process.argv.includes('--dev') || process.env.VITE_DEV_SERVER_URL || process.env.NODE_ENV === 'development');
 
-  if (!app.isPackaged && process.env.NODE_ENV !== 'production') {
+  if (isDev) {
+    const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
     mainWindow.loadURL(devServerUrl).catch(() => {
       // Fallback if dev server is starting slowly
       setTimeout(() => {
@@ -44,6 +92,10 @@ function createWindow() {
 }
 
 // IPC Handlers
+ipcMain.handle('app:getVersion', () => {
+  return app.getVersion() || '1.0.0-rc.1';
+});
+
 ipcMain.handle('app:openExternal', async (_event, filePath) => {
   if (!filePath) return { success: false, error: 'Chemin invalide' };
   try {
@@ -58,7 +110,6 @@ ipcMain.handle('app:openExternal', async (_event, filePath) => {
 });
 
 ipcMain.handle('dialog:openDirectory', async () => {
-
   if (!mainWindow) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory'],
@@ -67,7 +118,13 @@ ipcMain.handle('dialog:openDirectory', async () => {
   if (result.canceled || result.filePaths.length === 0) {
     return null;
   }
-  return result.filePaths[0];
+  const selectedPath = result.filePaths[0];
+  const decision = checkFileOperation({ operation: 'select-destination', destinationPath: selectedPath });
+  if (!decision.allowed) {
+    logSecurityPolicyViolation('select-destination', decision.code, 'dialog_selection', { selectedPath });
+    return null;
+  }
+  return selectedPath;
 });
 
 ipcMain.handle('fs:readDirectory', async (_event, dirPath) => {
@@ -116,57 +173,99 @@ ipcMain.handle('fs:renameEntry', async (_event, oldPath, newPath) => {
   if (!oldPath || !newPath) {
     return { success: false, error: 'Chemin d\'accès invalide.', code: 'INVALID_PATH' };
   }
+
+  const newName = path.basename(newPath);
+  const decision = checkFileOperation({ operation: 'rename', sourcePath: oldPath, newName });
+  if (!decision.allowed) {
+    logSecurityPolicyViolation('rename', decision.code, 'pre_execution_policy', { oldPath, newPath });
+    return {
+      success: false,
+      error: decision.message,
+      code: decision.code,
+    };
+  }
+
+  const attr = await inspectItemAttributes(oldPath);
+  if (!attr.exists) {
+    return {
+      success: false,
+      error: 'Élément d\'origine introuvable. Il a peut-être été supprimé ou déplacé.',
+      code: 'SOURCE_NOT_FOUND',
+    };
+  }
+
+  if (attr.isReadOnly) {
+    return {
+      success: false,
+      error: 'Cet élément est en lecture seule et ne peut pas être renommé. Aucune modification n\'a été effectuée.',
+      code: 'READ_ONLY_ITEM',
+    };
+  }
+
+  const parentDir = path.dirname(newPath);
   try {
-    try {
-      await fs.promises.access(oldPath);
-    } catch {
-      return {
-        success: false,
-        error: 'Élément introuvable. Il a peut-être été supprimé ou déplacé. Aucune autre modification n\'a été effectuée.',
-        code: 'ENOENT',
-      };
-    }
+    await fs.promises.access(parentDir);
+  } catch {
+    return {
+      success: false,
+      error: 'Le dossier parent n\'est pas accessible. Aucune autre modification n\'a été effectuée.',
+      code: 'DESTINATION_NOT_FOUND',
+    };
+  }
 
-    const parentDir = path.dirname(newPath);
-    try {
-      await fs.promises.access(parentDir);
-    } catch {
-      return {
-        success: false,
-        error: 'Le dossier parent n\'est pas accessible. Aucune autre modification n\'a été effectuée.',
-        code: 'EACCES',
-      };
-    }
-
+  try {
     await fs.promises.rename(oldPath, newPath);
     return { success: true };
   } catch (err) {
     let errorMsg = 'Impossible de renommer l\'élément.';
+    let code = err.code || 'UNKNOWN';
     if (err.code === 'ENOENT') {
       errorMsg = 'Élément introuvable.';
+      code = 'SOURCE_NOT_FOUND';
     } else if (err.code === 'EACCES' || err.code === 'EPERM') {
       errorMsg = 'Accès refusé.';
+      code = 'ACCESS_DENIED';
     } else if (err.code === 'EBUSY') {
       errorMsg = 'Le fichier est utilisé par une autre application.';
+      code = 'EBUSY';
     } else if (err.code === 'EEXIST') {
       errorMsg = 'Un fichier ou dossier portant ce nom existe déjà.';
+      code = 'NAME_CONFLICT';
     }
     return {
       success: false,
       error: `${errorMsg} Aucune autre modification n'a été effectuée.`,
-      code: err.code || 'UNKNOWN',
+      code,
     };
   }
 });
 
 ipcMain.handle('fs:copyEntry', async (event, { sourcePath, destDirPath, newName, copyId }) => {
   if (!sourcePath || !destDirPath || !newName || !copyId) {
-    return { success: false, error: 'Paramètres invalides. Le fichier original n\'a pas été modifié.' };
+    return { success: false, error: 'Paramètres invalides. Le fichier original n\'a pas été modified.', code: 'INVALID_PATH' };
+  }
+
+  const decision = checkFileOperation({ operation: 'copy', sourcePath, destinationPath: destDirPath, newName });
+  if (!decision.allowed) {
+    logSecurityPolicyViolation('copy', decision.code, 'pre_execution_policy', { sourcePath, destDirPath, newName });
+    return {
+      success: false,
+      error: decision.message,
+      code: decision.code,
+    };
   }
 
   let sourceStat;
   try {
-    sourceStat = await fs.promises.stat(sourcePath);
+    const attr = await inspectItemAttributes(sourcePath);
+    if (!attr.exists) {
+      return {
+        success: false,
+        error: 'Élément d\'origine introuvable ou inaccessible. Le fichier original n\'a pas été modifié.',
+        code: 'SOURCE_NOT_FOUND',
+      };
+    }
+    sourceStat = attr.stat;
   } catch (err) {
     return {
       success: false,
@@ -179,7 +278,7 @@ ipcMain.handle('fs:copyEntry', async (event, { sourcePath, destDirPath, newName,
   try {
     destStat = await fs.promises.stat(destDirPath);
     if (!destStat.isDirectory()) {
-      return { success: false, error: 'Le dossier de destination n\'est pas valide. Le fichier original n\'a pas été modifié.' };
+      return { success: false, error: 'Le dossier de destination n\'est pas valide. Le fichier original n\'a pas été modifié.', code: 'DESTINATION_NOT_DIRECTORY' };
     }
   } catch (err) {
     return {
@@ -189,29 +288,13 @@ ipcMain.handle('fs:copyEntry', async (event, { sourcePath, destDirPath, newName,
     };
   }
 
-  const normSource = path.normalize(sourcePath).toLowerCase();
-  const normDest = path.normalize(destDirPath).toLowerCase();
-
-  if (normDest === normSource) {
-    return {
-      success: false,
-      error: 'Ce dossier ne peut pas être copié à l\'intérieur de lui-même. Aucun fichier n\'a été modifié.',
-    };
-  }
-  if (sourceStat.isDirectory() && normDest.startsWith(normSource + path.sep)) {
-    return {
-      success: false,
-      error: 'Ce dossier ne peut pas être copié à l\'intérieur de l\'un de ses propres descendants. Aucun fichier n\'a été modifié.',
-    };
-  }
-
   const targetPath = path.join(destDirPath, newName);
   try {
     await fs.promises.access(targetPath);
     return {
       success: false,
       error: `Un ${sourceStat.isDirectory() ? 'dossier' : 'fichier'} portant ce nom existe déjà dans la destination. Aucun fichier n'a été modifié.`,
-      code: 'EEXIST',
+      code: 'NAME_CONFLICT',
     };
   } catch {
     // Expected targetPath does not exist
@@ -243,20 +326,36 @@ ipcMain.handle('fs:copyEntry', async (event, { sourcePath, destDirPath, newName,
       const checkStat = await fs.promises.stat(targetPath);
       if (sourceStat.size > 0 && checkStat.size === 0) {
         try { await fs.promises.unlink(targetPath); } catch {}
-        return { success: false, error: 'La copie créée est incomplète. Le fichier original n\'a pas été modifié.' };
+        return { success: false, error: 'La copie créée est incomplète. Le fichier original n\'a pas été modifié.', code: 'OPERATION_RESULT_INVALID' };
       }
 
       notifyProgress({ currentItem: newName, percentage: 100, copiedCount: 1, totalCount: 1 });
       return { success: true, targetPath: targetPath.replace(/\\/g, '/') };
     } else {
       const allEntries = [];
+      const visitedSymlinks = new Set();
+
       async function collectEntries(srcDir, relativePath = '') {
         const entries = await fs.promises.readdir(srcDir, { withFileTypes: true });
         for (const entry of entries) {
           const entrySrc = path.join(srcDir, entry.name);
           const entryRel = path.join(relativePath, entry.name);
-          allEntries.push({ src: entrySrc, rel: entryRel, isDir: entry.isDirectory() });
-          if (entry.isDirectory()) {
+
+          let isDir = entry.isDirectory();
+          if (entry.isSymbolicLink()) {
+            const symKey = entrySrc.toLowerCase();
+            if (visitedSymlinks.has(symKey)) continue;
+            visitedSymlinks.add(symKey);
+            try {
+              const realStat = await fs.promises.stat(entrySrc);
+              isDir = realStat.isDirectory();
+            } catch {
+              isDir = false;
+            }
+          }
+
+          allEntries.push({ src: entrySrc, rel: entryRel, isDir });
+          if (isDir && !entry.isSymbolicLink()) {
             await collectEntries(entrySrc, entryRel);
           }
         }
@@ -331,7 +430,17 @@ ipcMain.handle('fs:cancelCopy', async (_event, copyId) => {
 
 ipcMain.handle('fs:undoCopy', async (_event, copyPath) => {
   if (!copyPath) {
-    return { success: false, error: 'Chemin d\'accès de la copie invalide.' };
+    return { success: false, error: 'Chemin d\'accès de la copie invalide.', code: 'INVALID_PATH' };
+  }
+
+  const decision = checkFileOperation({ operation: 'restore', targetPath: copyPath });
+  if (!decision.allowed) {
+    logSecurityPolicyViolation('undoCopy', decision.code, 'pre_execution_policy', { copyPath });
+    return {
+      success: false,
+      error: 'L’opération ne peut plus être annulée automatiquement, car les fichiers ont changé depuis son exécution. Aucun fichier existant n’a été remplacé.',
+      code: 'UNDO_CONFLICT',
+    };
   }
 
   try {
@@ -340,7 +449,8 @@ ipcMain.handle('fs:undoCopy', async (_event, copyPath) => {
     } catch {
       return {
         success: false,
-        error: 'L\'élément à annuler n\'existe plus ou a été déplacé. L\'annulation est impossible.',
+        error: 'L’opération ne peut plus être annulée automatiquement, car les fichiers ont changé depuis son exécution. Aucun fichier existant n’a été remplacé.',
+        code: 'UNDO_CONFLICT',
       };
     }
 
@@ -349,25 +459,47 @@ ipcMain.handle('fs:undoCopy', async (_event, copyPath) => {
       await shell.trashItem(winCopyPath);
       return { success: true };
     } else {
-      await fs.promises.rm(winCopyPath, { recursive: true, force: true });
-      return { success: true };
+      return {
+        success: false,
+        error: 'Windows ne permet pas de placer cet élément dans la Corbeille. Aucune suppression définitive n’a été effectuée.',
+        code: 'TRASH_UNSUPPORTED',
+      };
     }
   } catch (err) {
     return {
       success: false,
-      error: `Impossible de placer la copie dans la Corbeille : ${err.message || 'Erreur d\'accès'}. L'élément original n'a pas été modifié.`,
+      error: 'L’opération ne peut plus être annulée automatiquement, car les fichiers ont changé depuis son exécution. Aucun fichier existant n’a été remplacé.',
+      code: 'UNDO_CONFLICT',
     };
   }
 });
 
 ipcMain.handle('fs:moveEntry', async (event, { sourcePath, destDirPath, newName, moveId }) => {
   if (!sourcePath || !destDirPath || !newName || !moveId) {
-    return { success: false, error: 'Paramètres invalides. L’élément original n’a pas été modifié.' };
+    return { success: false, error: 'Paramètres invalides. L’élément original n’a pas été modifié.', code: 'INVALID_PATH' };
+  }
+
+  const decision = checkFileOperation({ operation: 'move', sourcePath, destinationPath: destDirPath, newName });
+  if (!decision.allowed) {
+    logSecurityPolicyViolation('move', decision.code, 'pre_execution_policy', { sourcePath, destDirPath, newName });
+    return {
+      success: false,
+      error: decision.message,
+      code: decision.code,
+    };
   }
 
   let sourceStat;
   try {
-    sourceStat = await fs.promises.stat(sourcePath);
+    const attr = await inspectItemAttributes(sourcePath);
+    if (!attr.exists) {
+      return {
+        success: false,
+        error: 'Élément d\'origine introuvable ou inaccessible. L’élément original n\'a pas été modifié.',
+        code: 'SOURCE_NOT_FOUND',
+      };
+    }
+    sourceStat = attr.stat;
   } catch (err) {
     return {
       success: false,
@@ -380,7 +512,7 @@ ipcMain.handle('fs:moveEntry', async (event, { sourcePath, destDirPath, newName,
   try {
     destStat = await fs.promises.stat(destDirPath);
     if (!destStat.isDirectory()) {
-      return { success: false, error: 'Le dossier de destination n\'est pas valide. L’élément original n\'a pas été modifié.' };
+      return { success: false, error: 'Le dossier de destination n\'est pas valide. L’élément original n\'a pas été modifié.', code: 'DESTINATION_NOT_DIRECTORY' };
     }
   } catch (err) {
     return {
@@ -390,46 +522,13 @@ ipcMain.handle('fs:moveEntry', async (event, { sourcePath, destDirPath, newName,
     };
   }
 
-  const normSource = path.normalize(sourcePath).toLowerCase();
-  const normDest = path.normalize(destDirPath).toLowerCase();
-  const sourceParent = path.dirname(normSource);
-
-  if (normDest === sourceParent) {
-    return {
-      success: false,
-      error: 'L’élément se trouve déjà dans ce dossier. Aucun déplacement n’a été effectué.',
-    };
-  }
-
-  if (normDest === normSource) {
-    return {
-      success: false,
-      error: 'Ce dossier ne peut pas être déplacé à l\'intérieur de lui-même. Aucun fichier n\'a été modifié.',
-    };
-  }
-
-  if (sourceStat.isDirectory() && normDest.startsWith(normSource + path.sep)) {
-    return {
-      success: false,
-      error: 'Ce dossier ne peut pas être déplacé à l\'intérieur de l\'un de ses propres descendants. Aucun fichier n\'a été modifié.',
-    };
-  }
-
-  const protectedDirs = ['c:\\windows', 'c:\\program files', 'c:\\program files (x86)', 'c:\\programdata', 'c:\\$recycle.bin', 'c:\\system volume information'];
-  if (protectedDirs.some(p => normSource === p || normSource.startsWith(p + path.sep) || normDest === p || normDest.startsWith(p + path.sep))) {
-    return {
-      success: false,
-      error: 'L\'opération concerne un emplacement système protégé ou sensible. Le déplacement est refusé.',
-    };
-  }
-
   const targetPath = path.join(destDirPath, newName);
   try {
     await fs.promises.access(targetPath);
     return {
       success: false,
       error: `Un ${sourceStat.isDirectory() ? 'dossier' : 'fichier'} portant ce nom existe déjà dans la destination. Aucun fichier n'a été modifié.`,
-      code: 'EEXIST',
+      code: 'NAME_CONFLICT',
     };
   } catch {
     // Expected targetPath does not exist
@@ -462,6 +561,7 @@ ipcMain.handle('fs:moveEntry', async (event, { sourcePath, destDirPath, newName,
         return {
           success: false,
           error: 'Impossible de vérifier la destination après déplacement. Le fichier original n\'a pas été déplacé.',
+          code: 'OPERATION_RESULT_INVALID',
         };
       }
 
@@ -485,7 +585,7 @@ ipcMain.handle('fs:moveEntry', async (event, { sourcePath, destDirPath, newName,
         const checkStat = await fs.promises.stat(targetPath);
         if (sourceStat.size > 0 && checkStat.size === 0) {
           try { await fs.promises.unlink(targetPath); } catch {}
-          return { success: false, error: 'La copie intermédiaire est incomplète. Le fichier original n\'a pas été modifié.' };
+          return { success: false, error: 'La copie intermédiaire est incomplète. Le fichier original n\'a pas été modifié.', code: 'OPERATION_RESULT_INVALID' };
         }
 
         await fs.promises.unlink(sourcePath);
@@ -494,13 +594,29 @@ ipcMain.handle('fs:moveEntry', async (event, { sourcePath, destDirPath, newName,
         return { success: true, targetPath: targetPath.replace(/\\/g, '/'), sameVolume: false };
       } else {
         const allEntries = [];
+        const visitedSymlinks = new Set();
+
         async function collectEntries(srcDir, relativePath = '') {
           const entries = await fs.promises.readdir(srcDir, { withFileTypes: true });
           for (const entry of entries) {
             const entrySrc = path.join(srcDir, entry.name);
             const entryRel = path.join(relativePath, entry.name);
-            allEntries.push({ src: entrySrc, rel: entryRel, isDir: entry.isDirectory() });
-            if (entry.isDirectory()) await collectEntries(entrySrc, entryRel);
+
+            let isDir = entry.isDirectory();
+            if (entry.isSymbolicLink()) {
+              const symKey = entrySrc.toLowerCase();
+              if (visitedSymlinks.has(symKey)) continue;
+              visitedSymlinks.add(symKey);
+              try {
+                const realStat = await fs.promises.stat(entrySrc);
+                isDir = realStat.isDirectory();
+              } catch {
+                isDir = false;
+              }
+            }
+
+            allEntries.push({ src: entrySrc, rel: entryRel, isDir });
+            if (isDir && !entry.isSymbolicLink()) await collectEntries(entrySrc, entryRel);
           }
         }
         await collectEntries(sourcePath);
@@ -576,7 +692,17 @@ ipcMain.handle('fs:cancelMove', async (_event, moveId) => {
 
 ipcMain.handle('fs:undoMove', async (_event, { sourcePath, targetPath }) => {
   if (!sourcePath || !targetPath) {
-    return { success: false, error: 'Chemins invalides pour l\'annulation du déplacement.' };
+    return { success: false, error: 'Chemins invalides pour l\'annulation du déplacement.', code: 'INVALID_PATH' };
+  }
+
+  const decision = checkFileOperation({ operation: 'restore', sourcePath, destinationPath: targetPath });
+  if (!decision.allowed) {
+    logSecurityPolicyViolation('undoMove', decision.code, 'pre_execution_policy', { sourcePath, targetPath });
+    return {
+      success: false,
+      error: 'L’opération ne peut plus être annulée automatiquement, car les fichiers ont changé depuis son exécution. Aucun fichier existant n’a été remplacé.',
+      code: 'UNDO_CONFLICT',
+    };
   }
 
   try {
@@ -584,7 +710,8 @@ ipcMain.handle('fs:undoMove', async (_event, { sourcePath, targetPath }) => {
   } catch {
     return {
       success: false,
-      error: 'Le déplacement ne peut plus être annulé, car un autre fichier portant le même nom existe maintenant dans l\'ancien dossier ou l\'élément a été supprimé. Aucun fichier n’a été modifié.',
+      error: 'L’opération ne peut plus être annulée automatiquement, car les fichiers ont changé depuis son exécution. Aucun fichier existant n’a été remplacé.',
+      code: 'UNDO_CONFLICT',
     };
   }
 
@@ -594,7 +721,8 @@ ipcMain.handle('fs:undoMove', async (_event, { sourcePath, targetPath }) => {
   } catch {
     return {
       success: false,
-      error: 'Le déplacement ne peut plus être annulé, car l’ancien dossier n’existe plus ou n’est pas accessible. Aucun fichier n’a été modifié.',
+      error: 'L’opération ne peut plus être annulée automatiquement, car les fichiers ont changé depuis son exécution. Aucun fichier existant n’a été remplacé.',
+      code: 'UNDO_CONFLICT',
     };
   }
 
@@ -602,7 +730,8 @@ ipcMain.handle('fs:undoMove', async (_event, { sourcePath, targetPath }) => {
     await fs.promises.access(sourcePath);
     return {
       success: false,
-      error: 'Le déplacement ne peut plus être annulé, car un autre fichier portant le même nom existe maintenant dans l\'ancien dossier. Aucun fichier n\'a été modifié.',
+      error: 'L’opération ne peut plus être annulée automatiquement, car les fichiers ont changé depuis son exécution. Aucun fichier existant n’a été remplacé.',
+      code: 'UNDO_CONFLICT',
     };
   } catch {
     // Expected: sourcePath does not exist
@@ -645,7 +774,8 @@ ipcMain.handle('fs:undoMove', async (_event, { sourcePath, targetPath }) => {
   } catch (err) {
     return {
       success: false,
-      error: `L'annulation a échoué : ${err.message || 'Erreur d\'accès'}. Aucun fichier n'a été modifié.`,
+      error: 'L’opération ne peut plus être annulée automatiquement, car les fichiers ont changé depuis son exécution. Aucun fichier existant n’a été remplacé.',
+      code: 'UNDO_CONFLICT',
     };
   }
 });
@@ -697,56 +827,32 @@ ipcMain.handle('fs:trashItem', async (_event, options) => {
     };
   }
 
-  const norm = targetPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-
-  if (/^[a-z]:?$/i.test(norm) || norm === '' || norm === '/') {
+  const decision = checkFileOperation({ operation: 'trash', targetPath, appRootDir });
+  if (!decision.allowed) {
+    logSecurityPolicyViolation('trash', decision.code, 'pre_execution_policy', { targetPath });
     return {
       success: false,
       isProtected: true,
-      error: 'Cet élément est protégé et ne peut pas être placé dans la Corbeille depuis DirectoryDisplayApp. Aucun fichier n’a été modifié.',
-      code: 'PROTECTED',
-    };
-  }
-
-  if (appRootDir) {
-    const normAppRoot = appRootDir.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-    if (norm === normAppRoot) {
-      return {
-        success: false,
-        isProtected: true,
-        error: 'Cet élément est protégé et ne peut pas être placé dans la Corbeille depuis DirectoryDisplayApp. Aucun fichier n’a été modifié.',
-        code: 'PROTECTED_APP_ROOT',
-      };
-    }
-  }
-
-  const protectedPrefixes = [
-    'c:/windows',
-    'c:/program files',
-    'c:/program files (x86)',
-    'c:/programdata',
-    'c:/system volume information',
-    'c:/$recycle.bin',
-    'c:/boot',
-    'c:/recovery',
-  ];
-
-  if (protectedPrefixes.some((prefix) => norm === prefix || norm.startsWith(prefix + '/'))) {
-    return {
-      success: false,
-      isProtected: true,
-      error: 'Cet élément est protégé et ne peut pas être placé dans la Corbeille depuis DirectoryDisplayApp. Aucun fichier n’a été modifié.',
-      code: 'PROTECTED_SYSTEM',
+      error: decision.message,
+      code: decision.code,
     };
   }
 
   let stat;
   try {
-    stat = await fs.promises.stat(targetPath);
+    const attr = await inspectItemAttributes(targetPath);
+    if (!attr.exists) {
+      return {
+        success: false,
+        error: 'L’élément n’a pas pu être placé dans la Corbeille car il est introuvable ou déjà déplacé. Il est toujours présent à son emplacement initial s’il existait. Aucun autre fichier n’a été modifié.',
+        code: 'SOURCE_NOT_FOUND',
+      };
+    }
+    stat = attr.stat;
   } catch (err) {
     return {
       success: false,
-      error: 'L’élément n’a pas pu être placé dans la Corbeille car il est introuvable ou déjà déplacé. Il est toujours présent à son emplacement initial s’il existait. Aucun autre fichier n’a été modifié.',
+      error: 'L’élément n’a pas pu être placé dans la Corbeille car il est introuvable ou déjà déplacé. Il est toujours présent à son emplacement initial s’il existait. Aucun autre fichier n’a été modified.',
       code: err.code || 'ENOENT',
     };
   }
@@ -764,12 +870,17 @@ ipcMain.handle('fs:trashItem', async (_event, options) => {
   });
 
   const winPath = path.win32 ? path.win32.normalize(path.resolve(targetPath)) : path.resolve(targetPath);
+
+  if (!shell || typeof shell.trashItem !== 'function') {
+    return {
+      success: false,
+      error: 'Windows ne permet pas de placer cet élément dans la Corbeille. Aucune suppression définitive n’a été effectuée.',
+      code: 'TRASH_UNSUPPORTED',
+    };
+  }
+
   try {
-    if (shell && typeof shell.trashItem === 'function') {
-      await shell.trashItem(winPath);
-    } else {
-      await fs.promises.rm(winPath, { recursive: true, force: true });
-    }
+    await shell.trashItem(winPath);
 
     let stillExists = false;
     try {
@@ -782,7 +893,7 @@ ipcMain.handle('fs:trashItem', async (_event, options) => {
     if (stillExists) {
       return {
         success: false,
-        error: `Le ${isDirectory ? 'dossier' : 'fichier'} n’a pas pu être placé dans la Corbeille. Il est toujours présent à son emplacement initial. Aucun autre fichier n’a été modifié.`,
+        error: `Le ${isDirectory ? 'dossier' : 'fichier'} n’a pas pu être placed dans la Corbeille. Il est toujours présent à son emplacement initial. Aucun autre fichier n’a été modifié.`,
         code: 'FAILED_TO_REMOVE',
       };
     }
@@ -829,7 +940,161 @@ ipcMain.handle('fs:trashItem', async (_event, options) => {
   }
 });
 
+ipcMain.handle('fs:getFileMetadata', async (_event, filePath) => {
+  const val = validatePathAccess(filePath);
+  if (!val.valid) {
+    return { success: false, error: `Accès refusé : ${val.reason}`, code: val.reason };
+  }
+
+  try {
+    const stat = await fs.promises.stat(val.normalizedPath);
+    if (!stat.isFile()) {
+      return { success: false, error: 'L\'élément sélectionné n\'est pas un fichier.', code: 'NOT_A_FILE' };
+    }
+
+    const token = crypto.randomBytes(16).toString('hex');
+    activePreviewTokens.set(token, { filePath: val.normalizedPath, createdAt: Date.now() });
+
+    const now = Date.now();
+    for (const [t, info] of activePreviewTokens.entries()) {
+      if (now - info.createdAt > 10 * 60 * 1000) {
+        activePreviewTokens.delete(t);
+      }
+    }
+
+    const mediaUrl = `app-media://file?path=${encodeURIComponent(val.normalizedPath)}&token=${token}`;
+    const name = path.basename(val.normalizedPath);
+    const dotIndex = name.lastIndexOf('.');
+    const ext = dotIndex >= 0 ? name.slice(dotIndex + 1).toLowerCase() : '';
+
+    return {
+      success: true,
+      path: val.normalizedPath.replace(/\\/g, '/'),
+      name,
+      ext,
+      size: stat.size,
+      mtime: stat.mtime.toISOString(),
+      isFile: true,
+      isDir: false,
+      token,
+      mediaUrl,
+    };
+  } catch (err) {
+    let errorMsg = 'Impossible d\'accéder aux métadonnées du fichier.';
+    if (err.code === 'ENOENT') errorMsg = 'Fichier introuvable.';
+    else if (err.code === 'EACCES' || err.code === 'EPERM') errorMsg = 'Accès refusé.';
+    return { success: false, error: `${errorMsg} Le fichier n'a pas été modifié.`, code: err.code || 'UNKNOWN' };
+  }
+});
+
+ipcMain.handle('fs:readTextBuffer', async (_event, filePath, options) => {
+  const val = validatePathAccess(filePath);
+  if (!val.valid) return { success: false, error: `Accès refusé : ${val.reason}`, code: val.reason };
+
+  const maxBytes = 1024 * 1024;
+  const requestedMax = typeof options === 'number' ? options : options?.maxBytes;
+  const limitBytes = (typeof requestedMax === 'number' && requestedMax > 0) ? Math.min(requestedMax, maxBytes) : maxBytes;
+
+  let fileHandle = null;
+  try {
+    fileHandle = await fs.promises.open(val.normalizedPath, 'r');
+    const stat = await fileHandle.stat();
+    if (stat.size > maxBytes && (!requestedMax || requestedMax >= stat.size)) {
+      return { success: false, error: 'Fichier texte supérieur à 1 Mo.', code: 'FILE_TOO_LARGE', size: stat.size };
+    }
+    const bytesToRead = Math.min(stat.size, limitBytes);
+    const buffer = Buffer.alloc(bytesToRead);
+    if (bytesToRead > 0) {
+      await fileHandle.read(buffer, 0, bytesToRead, 0);
+    }
+    const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    return {
+      success: true,
+      buffer: arrayBuffer,
+      totalSize: stat.size,
+      truncated: stat.size > bytesToRead,
+    };
+  } catch (err) {
+    return { success: false, error: err.message || 'Impossible de lire le fichier.', code: err.code || 'UNKNOWN' };
+  } finally {
+    if (fileHandle) {
+      try { await fileHandle.close(); } catch {}
+    }
+  }
+});
+
+ipcMain.handle('fs:readDocxBuffer', async (_event, filePath) => {
+  const val = validatePathAccess(filePath);
+  if (!val.valid) return { success: false, error: `Accès refusé : ${val.reason}`, code: val.reason };
+
+  const maxBytes = 20 * 1024 * 1024;
+  let fileHandle = null;
+  try {
+    fileHandle = await fs.promises.open(val.normalizedPath, 'r');
+    const stat = await fileHandle.stat();
+    if (stat.size > maxBytes) {
+      return { success: false, error: 'Document Word supérieur à 20 Mo.', code: 'FILE_TOO_LARGE', size: stat.size };
+    }
+    const buffer = Buffer.alloc(stat.size);
+    if (stat.size > 0) {
+      await fileHandle.read(buffer, 0, stat.size, 0);
+    }
+    const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    return { success: true, buffer: arrayBuffer, totalSize: stat.size };
+  } catch (err) {
+    return { success: false, error: err.message || 'Impossible de lire le document Word.', code: err.code || 'UNKNOWN' };
+  } finally {
+    if (fileHandle) {
+      try { await fileHandle.close(); } catch {}
+    }
+  }
+});
+
+ipcMain.handle('fs:revokePreviewToken', (_event, token) => {
+  if (token && activePreviewTokens.has(token)) {
+    activePreviewTokens.delete(token);
+    return { success: true };
+  }
+  return { success: false };
+});
+
 app.whenReady().then(() => {
+  protocol.handle('app-media', async (request) => {
+    try {
+      const parsedUrl = new URL(request.url);
+      const rawPath = parsedUrl.searchParams.get('path');
+      const token = parsedUrl.searchParams.get('token');
+
+      if (!rawPath || !token || !activePreviewTokens.has(token)) {
+        return new Response('Access Denied: Invalid or missing token', { status: 403 });
+      }
+
+      const tokenInfo = activePreviewTokens.get(token);
+      const normTarget = path.normalize(rawPath).toLowerCase();
+      const normTokenPath = path.normalize(tokenInfo.filePath).toLowerCase();
+
+      if (normTarget !== normTokenPath) {
+        return new Response('Access Denied: Path mismatch', { status: 403 });
+      }
+
+      const val = validatePathAccess(rawPath);
+      if (!val.valid) {
+        return new Response(`Access Denied: ${val.reason}`, { status: 403 });
+      }
+
+      const stat = await fs.promises.stat(val.normalizedPath);
+      if (!stat.isFile()) {
+        return new Response('Access Denied: Not a file', { status: 403 });
+      }
+
+      const fileUrl = pathToFileURL(val.normalizedPath).toString();
+      return net.fetch(fileUrl, { headers: request.headers });
+    } catch (err) {
+      console.error('app-media protocol error:', err);
+      return new Response('Internal Server Error', { status: 500 });
+    }
+  });
+
   createWindow();
 
   app.on('activate', () => {
@@ -844,3 +1109,4 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+

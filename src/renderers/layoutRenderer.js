@@ -1691,9 +1691,10 @@ export function renderMainLayout(
       <div id="floating-dock" class="fixed bottom-3 left-1/2 -translate-x-1/2 ${isLight ? 'bg-white/95 text-slate-800 border border-slate-200 shadow-xl' : 'bg-[#181528]/90 text-slate-200 border border-purple-500/25 shadow-2xl'} backdrop-blur-md rounded-full px-5 py-2 hidden md:flex items-center gap-5 z-40">
         <div class="flex items-center gap-2 border-r ${isLight ? 'border-slate-200' : 'border-slate-700/60'} pr-4">
           <div class="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center">
-            ${icons.cloud({ size: 14 })}
+            ${icons.folderOpen({ size: 14 })}
           </div>
-          <span class="text-xs font-bold ${isLight ? 'text-slate-900' : 'text-white'} tracking-tight">Cloud Dock</span>
+          <span class="text-xs font-bold ${isLight ? 'text-slate-900' : 'text-white'} tracking-tight">DirectoryDisplayApp</span>
+          <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">v1.0.0-rc.1</span>
         </div>
 
         <div class="flex items-center gap-2 text-xs font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'} truncate max-w-xs">

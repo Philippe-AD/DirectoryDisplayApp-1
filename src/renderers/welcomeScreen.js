@@ -10,10 +10,11 @@ export function renderWelcomeScreen(error) {
         <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none"></div>
 
         <div class="inline-flex items-center justify-center w-16 h-16 bg-purple-600/20 text-purple-400 rounded-2xl mb-5 border border-purple-500/30 shadow-lg shadow-purple-900/30">
-          ${icons.cloud({ size: 32 })}
+          ${icons.folderOpen({ size: 32 })}
         </div>
-        <h1 class="text-2xl font-bold text-white tracking-tight">Cloud Dock</h1>
-        <p class="text-slate-400 mt-2 text-xs leading-relaxed">Explorateur et visionneuse de documents sécurisée. Parcourez vos répertoires et fichiers locaux dans une interface moderne.</p>
+        <h1 class="text-2xl font-bold text-white tracking-tight">DirectoryDisplayApp</h1>
+        <div class="mt-1 inline-block px-2.5 py-0.5 rounded-full bg-purple-950/80 border border-purple-500/30 text-[10px] font-mono text-purple-300">v1.0.0-rc.1</div>
+        <p class="text-slate-400 mt-2 text-xs leading-relaxed">Explorateur de fichiers guidé et sécurisé pour Windows</p>
 
         <div class="mt-6 space-y-3">
           <button

@@ -123,23 +123,68 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
   }
 
   const preview = previewState.preview || {};
+  const mediaSrc = preview.mediaUrl || objectUrl;
+  const totalSize = preview.totalSize ?? selectedItem.size ?? 0;
+  const readableSize = formatFileSize(totalSize);
 
   let previewBodyHtml = '';
 
-  if (preview.kind === 'image' && objectUrl) {
+  if (preview.kind === 'text-too-large') {
+    previewBodyHtml = `
+      <div class="mt-3 p-5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col gap-3">
+        <div class="flex items-center gap-2.5 font-bold text-xs text-amber-800">
+          ${icons.alertCircle({ size: 18, className: 'text-amber-600 flex-shrink-0' })}
+          <span>Fichier volumineux</span>
+        </div>
+        <p class="text-xs leading-relaxed">
+          Ce fichier est trop volumineux pour être prévisualisé dans DirectoryDisplayApp.
+        </p>
+        <div class="p-3 rounded-xl bg-amber-100/70 border border-amber-200/80 text-[11px] font-mono">
+          Taille : ${escapeHtml(readableSize)}
+        </div>
+        <p class="text-[11px] text-amber-800">
+          Le fichier n’a pas été modifié. Vous pouvez l’ouvrir avec son application habituelle.
+        </p>
+      </div>
+    `;
+  } else if (preview.kind === 'image-too-large') {
+    previewBodyHtml = `
+      <div class="mt-3 p-5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col gap-3">
+        <div class="flex items-center gap-2.5 font-bold text-xs text-amber-800">
+          ${icons.alertCircle({ size: 18, className: 'text-amber-600 flex-shrink-0' })}
+          <span>Image volumineuse (> 100 Mo)</span>
+        </div>
+        <p class="text-xs leading-relaxed">
+          Cette image est trop volumineuse pour être prévisualisée en toute sécurité.
+        </p>
+        <div class="p-3 rounded-xl bg-amber-100/70 border border-amber-200/80 text-[11px] font-mono">
+          Taille : ${escapeHtml(readableSize)}
+        </div>
+        <p class="text-[11px] text-amber-800">
+          Vous pouvez l’ouvrir avec l’application habituelle.
+        </p>
+      </div>
+    `;
+  } else if ((preview.kind === 'image' || preview.kind === 'image-warning') && mediaSrc) {
     previewBodyHtml = `
       <div class="mt-3 flex-1 flex flex-col min-h-0">
+        ${preview.kind === 'image-warning' ? `
+          <div class="mb-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-medium text-amber-900 flex items-center gap-2 flex-shrink-0">
+            ${icons.alertCircle({ size: 15, className: 'text-amber-600 flex-shrink-0' })}
+            <span>Image volumineuse (${escapeHtml(readableSize)}) — Prévisualisation directe prudente</span>
+          </div>
+        ` : ''}
         <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Aperçu image</p>
         <div class="flex-1 flex items-center justify-center p-4 bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-inner">
           <img
-            src="${objectUrl}"
+            src="${mediaSrc}"
             alt="${escapeHtml(selectedItem.name)}"
             class="max-w-full max-h-full object-contain rounded-lg shadow-md"
           />
         </div>
       </div>
     `;
-  } else if (preview.kind === 'audio' && objectUrl) {
+  } else if (preview.kind === 'audio' && mediaSrc) {
     previewBodyHtml = `
       <div class="mt-3 flex-1 flex flex-col justify-center items-center p-6 bg-slate-900 rounded-xl border border-slate-800 text-slate-100 gap-4">
         <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider self-start">Aperçu audio</p>
@@ -148,11 +193,11 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
         </div>
         <div class="text-center">
           <p class="font-semibold text-sm text-slate-100">${escapeHtml(selectedItem.name)}</p>
-          <p class="text-[11px] text-slate-400 mt-0.5">Fichier Audio</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Fichier Audio • ${escapeHtml(readableSize)}</p>
         </div>
         <audio
           controls
-          src="${objectUrl}"
+          src="${mediaSrc}"
           class="w-full max-w-md mt-2"
           preload="metadata"
         >
@@ -160,14 +205,14 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
         </audio>
       </div>
     `;
-  } else if (preview.kind === 'video' && objectUrl) {
+  } else if (preview.kind === 'video' && mediaSrc) {
     previewBodyHtml = `
       <div class="mt-3 flex-1 flex flex-col min-h-0">
         <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Aperçu vidéo</p>
         <div class="flex-1 flex items-center justify-center p-2 bg-black rounded-xl border border-slate-800 overflow-hidden shadow-inner">
           <video
             controls
-            src="${objectUrl}"
+            src="${mediaSrc}"
             class="max-w-full max-h-full rounded-lg"
             preload="metadata"
           >
@@ -176,23 +221,32 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
         </div>
       </div>
     `;
-  } else if (preview.kind === 'pdf' && objectUrl) {
+  } else if (preview.kind === 'pdf' && mediaSrc) {
     previewBodyHtml = `
       <div class="mt-3 flex-1 flex flex-col min-h-0">
         <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Aperçu PDF</p>
         <object
-          data="${objectUrl}"
+          data="${mediaSrc}"
           type="application/pdf"
           title="Prévisualisation PDF de ${escapeHtml(selectedItem.name)}"
           class="w-full flex-1 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden shadow-sm"
         >
-          <iframe
-            src="${objectUrl}"
-            type="application/pdf"
-            title="Prévisualisation PDF de ${escapeHtml(selectedItem.name)}"
-            class="w-full h-full border-0"
-          ></iframe>
+          <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex flex-col gap-2">
+            <p class="font-bold">DirectoryDisplayApp ne peut pas afficher ce PDF.</p>
+            <p class="text-[11px]">Le fichier n’a pas été modifié. Vous pouvez l’ouvrir avec votre lecteur PDF habituel.</p>
+          </div>
         </object>
+      </div>
+    `;
+  } else if (preview.kind === 'pdf-error') {
+    previewBodyHtml = `
+      <div class="mt-3 p-5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col gap-2.5">
+        <div class="flex items-center gap-2 font-bold text-xs text-amber-800">
+          ${icons.alertCircle({ size: 18, className: 'text-amber-600 flex-shrink-0' })}
+          <span>Lecteur PDF indisponible</span>
+        </div>
+        <p class="text-xs leading-relaxed">DirectoryDisplayApp ne peut pas afficher ce PDF.</p>
+        <p class="text-[11px] text-amber-800">Le fichier n’a pas été modifié. Vous pouvez l’ouvrir avec votre lecteur PDF habituel.</p>
       </div>
     `;
   } else if (preview.kind === 'word-docx') {
@@ -209,19 +263,36 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
         </div>
       </div>
     `;
+  } else if (preview.kind === 'docx-too-large') {
+    previewBodyHtml = `
+      <div class="mt-3 p-5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col gap-3">
+        <div class="flex items-center gap-2.5 font-bold text-xs text-amber-800">
+          ${icons.alertCircle({ size: 18, className: 'text-amber-600 flex-shrink-0' })}
+          <span>Document Word volumineux (> 20 Mo)</span>
+        </div>
+        <p class="text-xs leading-relaxed">
+          Ce document Word est trop volumineux pour être prévisualisé dans DirectoryDisplayApp.
+        </p>
+        <div class="p-3 rounded-xl bg-amber-100/70 border border-amber-200/80 text-[11px] font-mono">
+          Taille : ${escapeHtml(readableSize)}
+        </div>
+        <p class="text-[11px] text-amber-800">
+          Le fichier n’a pas été modifié. Vous pouvez l’ouvrir avec son application habituelle.
+        </p>
+      </div>
+    `;
   } else if (preview.kind === 'text' || preview.kind === 'word') {
     const content = preview.content ?? '';
     const syntaxLang = preview.kind === 'text' ? getSyntaxLanguage(selectedItem.name) ?? 'markup' : 'markup';
     const highlightedCode = content ? highlightCode(content, syntaxLang) : '';
-    const isTruncated = preview.kind === 'text' && Boolean(preview.truncated);
-    const totalSize = preview.totalSize ?? selectedItem.size;
+    const isTruncated = Boolean(preview.truncated);
 
     previewBodyHtml = `
       <div class="mt-3 flex-1 flex flex-col min-h-0">
         ${isTruncated ? `
           <div class="mb-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-medium text-amber-900 flex items-center gap-2 flex-shrink-0" id="preview-truncated-warning">
             ${icons.alertCircle({ size: 15, className: 'text-amber-600 flex-shrink-0' })}
-            <span>Aperçu limité au premier mégaoctet — taille totale : ${formatFileSize(totalSize)}</span>
+            <span>Aperçu limité au premier mégaoctet — taille totale : ${escapeHtml(readableSize)}</span>
           </div>
         ` : ''}
         <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -250,16 +321,16 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
       </div>
     `;
   } else if (preview.kind === 'word-error' || previewState.status === 'word-error' || previewState.status === 'error') {
-    const rawError = previewState.error || '';
-    let errorMessageText = 'Ce fichier ne peut pas être prévisualisé. Aucun fichier n\'a été modifié.';
+    const rawError = previewState.error || preview.error || '';
+    let errorMessageText = "Ce fichier ne peut pas être prévisualisé. Aucun fichier n'a été modifié.";
     if (/accès refusé|permission|denied|eacces|eperm/i.test(rawError)) {
-      errorMessageText = 'Accès refusé. Vous n\'avez pas la permission de lire ce fichier. Aucun fichier n\'a été modifié.';
+      errorMessageText = "Accès refusé. Vous n'avez pas la permission de lire ce fichier. Aucun fichier n'a été modifié.";
     } else if (/introuvable|not found|enoent/i.test(rawError)) {
-      errorMessageText = 'Fichier introuvable. Le fichier n\'existe plus à cet emplacement. Aucun fichier n\'a été modifié.';
+      errorMessageText = "Fichier introuvable. Le fichier n'existe plus à cet emplacement. Aucun fichier n'a été modifié.";
     } else if (/déplacé|moved/i.test(rawError)) {
-      errorMessageText = 'Le fichier a été déplacé depuis la dernière actualisation. Aucun fichier n\'a été modifié.';
+      errorMessageText = "Le fichier a été déplacé depuis la dernière actualisation. Aucun fichier n'a été modifié.";
     } else if (/verrouillé|locked|ebusy/i.test(rawError)) {
-      errorMessageText = 'Le fichier est verrouillé par une autre application. Aucun fichier n\'a été modifié.';
+      errorMessageText = "Le fichier est verrouillé par une autre application. Aucun fichier n'a été modifié.";
     }
 
     previewBodyHtml = `
@@ -267,18 +338,23 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
         ${icons.alertCircle({ size: 18, className: 'text-red-600 flex-shrink-0 mt-0.5' })}
         <div>
           <p class="font-bold text-xs">Erreur de lecture</p>
-          <p class="mt-0.5 text-[11px] text-red-800 leading-relaxed">${escapeHtml(errorMessageText)}</p>
+          <p class="mt-0.5 text-[11px] text-red-800 leading-relaxed">${errorMessageText}</p>
         </div>
       </div>
     `;
   } else {
     previewBodyHtml = `
-      <div class="mt-3 p-4 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-600 flex items-start gap-2.5">
-        ${icons.alertCircle({ size: 18, className: 'text-slate-400 flex-shrink-0 mt-0.5' })}
-        <div>
-          <p class="font-bold text-xs">Format non pris en charge</p>
-          <p class="mt-0.5 text-[11px] text-slate-500 leading-relaxed">Ce format de fichier n'est pas pris en charge pour la prévisualisation. Aucun fichier n'a été modifié.</p>
+      <div class="mt-3 p-5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700 flex flex-col gap-3">
+        <div class="flex items-center gap-2.5 font-bold text-xs text-slate-800">
+          ${icons.alertCircle({ size: 18, className: 'text-slate-400 flex-shrink-0' })}
+          <span>Format non pris en charge</span>
         </div>
+        <p class="text-xs leading-relaxed text-slate-600">
+          Aucun aperçu intégré n’est disponible pour ce type de fichier.
+        </p>
+        <p class="text-[11px] text-slate-500">
+          Le fichier n’a pas été modifié.
+        </p>
       </div>
     `;
   }
@@ -296,6 +372,15 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
         : icons.fileText({ size: 20, className: 'text-purple-600' });
 
   const ext = getFileExtension(selectedItem.name);
+  const formattedMtime = selectedItem.mtime
+    ? new Date(selectedItem.mtime).toLocaleString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
 
   return `
     <div id="preview-panel" class="h-full flex flex-col p-5 bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm">
@@ -308,10 +393,10 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
               <h3 class="font-bold text-slate-900 text-sm truncate max-w-sm" title="${escapeHtml(selectedItem.name)}">${escapeHtml(selectedItem.name)}</h3>
-              <span class="text-[10px] font-mono font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full border border-slate-200 flex-shrink-0">${ext}</span>
+              <span class="text-[10px] font-mono font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full border border-slate-200 flex-shrink-0">${ext || 'fichier'}</span>
             </div>
             <p class="text-[11px] text-slate-400 font-mono truncate mt-0.5">
-              ${selectedItem.size !== undefined ? `${formatFileSize(selectedItem.size)} • ` : ''}${escapeHtml(selectedItem.path)}
+              ${selectedItem.size !== undefined ? `${readableSize} • ` : ''}${formattedMtime ? `Modifié le ${formattedMtime} • ` : ''}${escapeHtml(selectedItem.path)}
             </p>
           </div>
         </div>
@@ -377,9 +462,9 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
             <span class="hidden sm:inline">Ouvrir avec…</span>
           </button>
 
-          ${objectUrl ? `
+          ${mediaSrc && preview.kind !== 'text-too-large' && preview.kind !== 'docx-too-large' && preview.kind !== 'image-too-large' ? `
             <a
-              href="${objectUrl}"
+              href="${mediaSrc}"
               download="${escapeHtml(selectedItem.name)}"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-[11px] font-medium text-white transition-colors shadow-2xs flex-shrink-0"
               title="Enregistrer une copie du fichier"

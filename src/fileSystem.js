@@ -41,6 +41,35 @@ export async function getElectronFile(filePath, fileName, options = {}) {
   return file;
 }
 
+export async function getFileMetadata(filePath) {
+  if (window.electronAPI?.getFileMetadata) {
+    return await window.electronAPI.getFileMetadata(filePath);
+  }
+  return { success: false, error: 'Metadata API not available.' };
+}
+
+export async function readTextBuffer(filePath, options) {
+  if (window.electronAPI?.readTextBuffer) {
+    return await window.electronAPI.readTextBuffer(filePath, options);
+  }
+  return { success: false, error: 'Text buffer API not available.' };
+}
+
+export async function readDocxBuffer(filePath) {
+  if (window.electronAPI?.readDocxBuffer) {
+    return await window.electronAPI.readDocxBuffer(filePath);
+  }
+  return { success: false, error: 'Docx buffer API not available.' };
+}
+
+export async function revokePreviewToken(token) {
+  if (window.electronAPI?.revokePreviewToken && token) {
+    return await window.electronAPI.revokePreviewToken(token);
+  }
+  return { success: false };
+}
+
+
 export async function listDirectory(dir, parentPath = '') {
   const targetPath = parentPath || (dir && dir.path) || '';
   if (!window.electronAPI?.readDirectory) {

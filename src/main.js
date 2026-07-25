@@ -2,7 +2,10 @@ import './index.css';
 import {
   openDirectory,
   listDirectory,
-  getElectronFile,
+  getFileMetadata,
+  readTextBuffer,
+  readDocxBuffer,
+  revokePreviewToken,
   openExternalFile,
   renameFileOrDirectory,
   copyFileOrDirectory,
@@ -16,9 +19,7 @@ import {
   trashItemOrDirectory,
 } from './fileSystem';
 import {
-  isTextFile,
   readFilePreview,
-  MAX_TEXT_PREVIEW_BYTES,
 } from './filePreview';
 import {
   renderWelcomeScreen,
@@ -60,6 +61,7 @@ const state = {
   panelWidth: 380,
   isHeaderCollapsed: false,
   objectUrl: null,
+  currentPreviewToken: null,
   isTreeVisible: true,
   showExternalOpenModal: false,
   skipExternalOpenWarning: false,
@@ -176,13 +178,81 @@ function getAppElement() {
   return el;
 }
 
+function stopActiveMediaElements() {
+  const mediaEls = document.querySelectorAll('audio, video');
+  mediaEls.forEach((media) => {
+    try {
+      media.pause();
+      media.src = '';
+      media.load();
+    } catch {
+      // ignore media element pause/cleanup errors
+    }
+  });
+}
+
 function updateObjectUrl(file) {
+  stopActiveMediaElements();
+  if (state.currentPreviewToken) {
+    revokePreviewToken(state.currentPreviewToken);
+    state.currentPreviewToken = null;
+  }
   if (state.objectUrl) {
     URL.revokeObjectURL(state.objectUrl);
     state.objectUrl = null;
   }
-  if (file) {
+  if (file && typeof file !== 'string') {
     state.objectUrl = URL.createObjectURL(file);
+  }
+}
+
+function sanitizeDocxContainer(container) {
+  if (!container) return;
+
+  const scripts = container.querySelectorAll('script');
+  scripts.forEach((s) => s.remove());
+
+  const activeElements = container.querySelectorAll('object, embed, iframe');
+  activeElements.forEach((el) => el.remove());
+
+  const allElements = container.querySelectorAll('*');
+  allElements.forEach((el) => {
+    const attrNames = Array.from(el.attributes).map((a) => a.name);
+    for (const attr of attrNames) {
+      if (attr.toLowerCase().startsWith('on')) {
+        el.removeAttribute(attr);
+        continue;
+      }
+      const val = el.getAttribute(attr) || '';
+      if (val.trim().toLowerCase().startsWith('javascript:')) {
+        el.removeAttribute(attr);
+        continue;
+      }
+      if ((attr === 'src' || attr === 'href') && /^https?:\/\//i.test(val.trim())) {
+        el.removeAttribute(attr);
+      }
+    }
+  });
+}
+
+async function renderDocxPreview(arrayBuffer, container) {
+  try {
+    const docx = await import('docx-preview');
+    container.innerHTML = '';
+    await docx.renderAsync(arrayBuffer, container, null, {
+      inWrapper: true,
+      ignoreWidth: false,
+      ignoreHeight: false,
+      experimental: true,
+    });
+    sanitizeDocxContainer(container);
+  } catch (err) {
+    console.error('Failed to render DOCX preview:', err);
+    container.innerHTML = `
+      <div class="p-4 rounded-xl bg-red-50 text-xs text-red-700">
+        Impossible d'afficher la mise en page du document Word. Aucun fichier n'a été modifié.
+      </div>
+    `;
   }
 }
 
@@ -267,26 +337,6 @@ function render() {
   const newFileListEl = document.getElementById('file-list');
   if (newFileListEl && previousScrollTop > 0) {
     newFileListEl.scrollTop = previousScrollTop;
-  }
-}
-
-async function renderDocxPreview(arrayBuffer, container) {
-  try {
-    const docx = await import('docx-preview');
-    container.innerHTML = '';
-    await docx.renderAsync(arrayBuffer, container, null, {
-      inWrapper: true,
-      ignoreWidth: false,
-      ignoreHeight: false,
-      experimental: true,
-    });
-  } catch (err) {
-    console.error('Failed to render DOCX preview:', err);
-    container.innerHTML = `
-      <div class="p-4 rounded-xl bg-red-50 text-xs text-red-700">
-        Impossible d'afficher la mise en page du document Word. Aucun fichier n'a été modifié.
-      </div>
-    `;
   }
 }
 
@@ -2059,31 +2109,57 @@ function handleNodeDoubleClick(node) {
 
 async function triggerFilePreview(node) {
   const currentReqId = ++previewRequestId;
+  stopActiveMediaElements();
   state.previewState = { status: 'loading', preview: null };
   render();
 
   try {
-    const isText = isTextFile({ name: node.name, type: '' });
-    const options = isText ? { maxBytes: MAX_TEXT_PREVIEW_BYTES } : undefined;
-    const file = await getElectronFile(node.path, node.name, options);
+    const metaRes = await getFileMetadata(node.path);
 
     if (currentReqId !== previewRequestId) return;
 
-    if (!file) {
-      state.previewState = { status: 'unsupported', preview: null };
+    if (!metaRes || !metaRes.success) {
+      const errMessage = metaRes ? metaRes.error : 'Impossible d\'accéder au fichier. Le fichier n\'a pas été modifié.';
+      state.previewState = {
+        status: 'error',
+        error: errMessage,
+        preview: { kind: 'error', error: errMessage },
+      };
       updateObjectUrl(null);
       render();
       return;
     }
 
-    const preview = await readFilePreview(file);
+    if (state.selectedItem && state.selectedItem.path === node.path) {
+      state.selectedItem.size = metaRes.size;
+      state.selectedItem.mtime = metaRes.mtime;
+    }
+
+    if (state.currentPreviewToken && state.currentPreviewToken !== metaRes.token) {
+      revokePreviewToken(state.currentPreviewToken);
+    }
+    state.currentPreviewToken = metaRes.token;
+
+    const preview = await readFilePreview(metaRes, {
+      readTextBuffer,
+      readDocxBuffer,
+    });
+
     if (currentReqId !== previewRequestId) return;
 
-    updateObjectUrl(file);
-    state.previewState = { status: preview.kind, preview };
-  } catch {
+    if (!preview) {
+      state.previewState = { status: 'unsupported', preview: { kind: 'unsupported', totalSize: metaRes.size } };
+    } else {
+      state.previewState = { status: preview.kind, preview };
+    }
+  } catch (err) {
     if (currentReqId !== previewRequestId) return;
-    state.previewState = { status: 'error', preview: null };
+    console.error('File preview trigger error:', err);
+    state.previewState = {
+      status: 'error',
+      error: 'Erreur lors de la préparation de la prévisualisation. Aucun fichier n\'a été modifié.',
+      preview: { kind: 'error', error: 'Erreur de prévisualisation' },
+    };
     updateObjectUrl(null);
   }
 

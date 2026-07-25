@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom Cloud Dock & Dark Sidebar scrollbars */
+/* Custom DirectoryDisplayApp & Dark Sidebar scrollbars */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;

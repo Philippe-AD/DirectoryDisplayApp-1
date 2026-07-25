@@ -1,4 +1,4 @@
-# 📁 Directory Display App
+# 📁 DirectoryDisplayApp
 
 ![Electron](https://img.shields.io/badge/Electron-43.2.0-47848F?style=for-the-badge&logo=electron&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-5.4.2-646CFF?style=for-the-badge&logo=vite&logoColor=white)
@@ -6,7 +6,7 @@
 ![JavaScript](https://img.shields.io/badge/Vanilla_JS-ES6+-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
 ![Vitest](https://img.shields.io/badge/Vitest-4.1.10-76E2EA?style=for-the-badge&logo=vitest&logoColor=black)
 
-**Directory Display App** est une application desktop n'exigeant aucun framework lourd (développée en **Vanilla JavaScript ES6+**) basée sur **Electron** et **Vite**. Elle permet d'explorer, de visualiser et de prévisualiser dynamiquement le contenu de dossiers locaux avec une prise en charge étendue de formats de fichiers.
+**DirectoryDisplayApp** est une application desktop d'exploration de fichiers guidée et sécurisée pour Windows, développée en **Vanilla JavaScript ES6+** basée sur **Electron** et **Vite**.
 
 ---
 
@@ -18,11 +18,11 @@
 * 👁️ **Visualiseur & Prévisualisation Multi-Formats** :
   * 🖼️ **Images** : Prise en charge des formats `PNG`, `JPG`, `JPEG`, `GIF`, `WebP`, `SVG`, `BMP`, `ICO`, etc.
   * 📑 **PDF** : Affichage directement intégré dans l'interface.
-  * 📄 **Documents Word** : Integration avec `docx-preview` / `Mammoth`.
-  * 💻 **Code & Syntaxe** : Coloration syntaxique haute performance avec `Prism.js` (JavaScript, TypeScript, Python, C/C++, Java, C#, SQL, HTML, CSS, Bash, Rust, Go, etc.).
-  * 📝 **Fichiers Texte & Config** : Lecture des fichiers `.txt`, `.csv`, `.log`, `.json`, `.yaml`, `.env`, `.ini`, etc., avec tronquage de sécurité au-delà de 1 Mo.
+  * 📄 **Documents Word** : Intégration avec `docx-preview`.
+  * 💻 **Code & Syntaxe** : Coloration syntaxique haute performance avec `Prism.js`.
+  * 📝 **Fichiers Texte & Config** : Lecture des fichiers `.txt`, `.csv`, `.log`, `.json`, `.yaml`, `.env`, `.ini`, etc.
 * 📦 **Outil d'archivage intégré** :
-  * Script de packaging automatique (`zip-project.js`) pour générer une archive `.zip` propre du projet sans fichiers parasites.
+  * Script de packaging automatique (`zip-project.js`) pour générer une archive `DirectoryDisplayApp-v1.0.0-rc.1.zip` propre.
 * 🧪 **Suite de tests unitaires** :
   * Tests automatisés avec `Vitest` couvrant la gestion du système de fichiers et les utilitaires de prévisualisation.
 
@@ -34,7 +34,7 @@
 * **Langage & Logique** : Vanilla JavaScript ES6+ (Modules ES)
 * **Styling & UI** : [Tailwind CSS](https://tailwindcss.com/) & Icons SVG
 * **Coloration Syntaxique** : [Prism.js](https://prismjs.com/)
-* **Parsing de Documents** : [docx-preview](https://github.com/VolodymyrBaydalka/docx-preview) / [Mammoth.js](https://github.com/mwilliamson/mammoth.js/)
+* **Parsing de Documents** : [docx-preview](https://github.com/VolodymyrBaydalka/docx-preview)
 * **Tests** : [Vitest](https://vitest.dev/)
 * **Packaging Desktop** : [Electron Builder](https://www.electron.build/)
 
@@ -53,7 +53,7 @@ DirectoryDisplayApp/
 │   ├── icons.js            # Génération des icônes SVG dynamiques
 │   ├── index.css           # Styles CSS principaux et utilitaires Tailwind
 │   ├── main.js             # Logique applicative principale UI / DOM
-│   └── renderers.js        # Rendu des aperçus de fichiers (Images, PDF, Word, Code)
+│   └── renderers/          # Modules de rendu de l'interface utilisateur
 ├── tests/                  # Tests unitaires Vitest
 ├── index.html              # Point d'entrée HTML5
 ├── zip-project.js          # Script d'export en archive ZIP nettoyée
@@ -69,7 +69,7 @@ DirectoryDisplayApp/
 ### Prérequis
 
 * [Node.js](https://nodejs.org/) (Version 18+ recommandée)
-* `npm` ou `yarn`
+* `npm`
 
 ### 1. Installation des dépendances
 
@@ -79,8 +79,6 @@ npm install
 
 ### 2. Lancement en mode Développement Desktop (Electron)
 
-Lance le serveur Vite de développement ainsi qu'Electron simultanément avec rechargement à chaud (Hot Reload) :
-
 ```bash
 npm run electron:dev
 ```
@@ -89,7 +87,7 @@ npm run electron:dev
 
 ## 🧪 Tests Unitaires
 
-Pour exécuter la suite de tests automatisée avec Vitest :
+Exécuter la suite de tests automatisée avec Vitest :
 
 ```bash
 npm run test
@@ -101,16 +99,13 @@ npm run test
 
 ### Compiler l'application Desktop (Executable Windows)
 
-Génère les installateurs (`NSIS`) et la version portable pour Windows dans le dossier `/release` :
-
 ```bash
 npm run electron:build
 ```
 
 ### Générer l'archive ZIP du projet
 
-Crée une archive `DirectoryDisplayApp.zip` nettoyée (excluant `node_modules`, builds temporaires et logs) :
-
 ```bash
 npm run zip
 ```
+

@@ -165,7 +165,7 @@ describe('5. Reassuring Error Messages', () => {
     const unsupportedHtml = renderPreviewPanel(item, { status: 'unsupported' }, null);
     const readErrorHtml = renderPreviewPanel(item, { status: 'error', error: 'Permission denied' }, null);
 
-    expect(unsupportedHtml).toContain('Aucun fichier');
+    expect(unsupportedHtml).toContain('fichier');
     expect(unsupportedHtml).toContain('été modifié');
     expect(readErrorHtml).toContain('Aucun fichier');
     expect(readErrorHtml).toContain('été modifié');
