@@ -30,5 +30,8 @@ export {
   renderCopyWizardModal,
   renderCopyUndoToast,
   renderCopyErrorModal,
+  renderMoveWizardModal,
+  renderMoveUndoToast,
+  renderMoveErrorModal,
   renderMainLayout,
 } from './renderers/layoutRenderer';

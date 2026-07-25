@@ -15,6 +15,14 @@ const api = {
     ipcRenderer.on('fs:copyProgress', listener);
     return () => ipcRenderer.removeListener('fs:copyProgress', listener);
   },
+  moveEntry: (options) => ipcRenderer.invoke('fs:moveEntry', options),
+  cancelMove: (moveId) => ipcRenderer.invoke('fs:cancelMove', moveId),
+  undoMove: (options) => ipcRenderer.invoke('fs:undoMove', options),
+  onMoveProgress: (callback) => {
+    const listener = (_event, data) => callback(data);
+    ipcRenderer.on('fs:moveProgress', listener);
+    return () => ipcRenderer.removeListener('fs:moveProgress', listener);
+  },
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

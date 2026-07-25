@@ -46,6 +46,17 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
             </div>
           </div>
           <button
+            id="btn-trigger-move"
+            type="button"
+            data-item-path="${escapeHtml(selectedItem.path)}"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[11px] font-medium text-white transition-colors shadow-2xs flex-shrink-0"
+            title="Déplacer ce dossier vers un autre emplacement…"
+            aria-label="Déplacer ce dossier"
+          >
+            ${icons.move ? icons.move({ size: 14 }) : icons.folderOpen({ size: 14 })}
+            <span>Déplacer vers…</span>
+          </button>
+          <button
             id="btn-trigger-copy"
             type="button"
             data-item-path="${escapeHtml(selectedItem.path)}"
@@ -295,6 +306,18 @@ export function renderPreviewPanel(selectedItem, previewState = { status: 'idle'
         </div>
 
         <div class="flex items-center gap-2 flex-shrink-0">
+          <button
+            id="btn-trigger-move"
+            type="button"
+            data-item-path="${escapeHtml(selectedItem.path)}"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[11px] font-medium text-white transition-colors shadow-2xs flex-shrink-0"
+            title="Déplacer ce fichier vers un autre emplacement…"
+            aria-label="Déplacer ce fichier"
+          >
+            ${icons.move ? icons.move({ size: 14 }) : icons.folderOpen({ size: 14 })}
+            <span class="hidden sm:inline">Déplacer vers…</span>
+          </button>
+
           <button
             id="btn-trigger-copy"
             type="button"

@@ -107,3 +107,38 @@ export function subscribeCopyProgress(callback) {
   return () => {};
 }
 
+export async function moveFileOrDirectory(options) {
+  if (window.electronAPI?.moveEntry) {
+    return await window.electronAPI.moveEntry(options);
+  }
+  return {
+    success: false,
+    error: "Le déplacement n'est pas disponible.",
+  };
+}
+
+export async function cancelMoveOperation(moveId) {
+  if (window.electronAPI?.cancelMove) {
+    return await window.electronAPI.cancelMove(moveId);
+  }
+  return { success: false };
+}
+
+export async function undoMoveOperation(options) {
+  if (window.electronAPI?.undoMove) {
+    return await window.electronAPI.undoMove(options);
+  }
+  return {
+    success: false,
+    error: "L'annulation du déplacement n'est pas disponible.",
+  };
+}
+
+export function subscribeMoveProgress(callback) {
+  if (window.electronAPI?.onMoveProgress) {
+    return window.electronAPI.onMoveProgress(callback);
+  }
+  return () => {};
+}
+
+

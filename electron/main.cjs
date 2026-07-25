@@ -108,6 +108,8 @@ ipcMain.handle('fs:readDirectory', async (_event, dirPath) => {
 });
 
 const activeCopies = new Map();
+const activeMoves = new Map();
+
 
 ipcMain.handle('fs:renameEntry', async (_event, oldPath, newPath) => {
   if (!oldPath || !newPath) {
@@ -355,6 +357,297 @@ ipcMain.handle('fs:undoCopy', async (_event, copyPath) => {
     };
   }
 });
+
+ipcMain.handle('fs:moveEntry', async (event, { sourcePath, destDirPath, newName, moveId }) => {
+  if (!sourcePath || !destDirPath || !newName || !moveId) {
+    return { success: false, error: 'Paramètres invalides. L’élément original n’a pas été modifié.' };
+  }
+
+  let sourceStat;
+  try {
+    sourceStat = await fs.promises.stat(sourcePath);
+  } catch (err) {
+    return {
+      success: false,
+      error: 'Élément d\'origine introuvable ou inaccessible. L’élément original n\'a pas été modifié.',
+      code: err.code || 'ENOENT',
+    };
+  }
+
+  let destStat;
+  try {
+    destStat = await fs.promises.stat(destDirPath);
+    if (!destStat.isDirectory()) {
+      return { success: false, error: 'Le dossier de destination n\'est pas valide. L’élément original n\'a pas été modifié.' };
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: 'Le dossier de destination est introuvable ou inaccessible. L’élément original n\'a pas été modifié.',
+      code: err.code || 'EACCES',
+    };
+  }
+
+  const normSource = path.normalize(sourcePath).toLowerCase();
+  const normDest = path.normalize(destDirPath).toLowerCase();
+  const sourceParent = path.dirname(normSource);
+
+  if (normDest === sourceParent) {
+    return {
+      success: false,
+      error: 'L’élément se trouve déjà dans ce dossier. Aucun déplacement n’a été effectué.',
+    };
+  }
+
+  if (normDest === normSource) {
+    return {
+      success: false,
+      error: 'Ce dossier ne peut pas être déplacé à l\'intérieur de lui-même. Aucun fichier n\'a été modifié.',
+    };
+  }
+
+  if (sourceStat.isDirectory() && normDest.startsWith(normSource + path.sep)) {
+    return {
+      success: false,
+      error: 'Ce dossier ne peut pas être déplacé à l\'intérieur de l\'un de ses propres descendants. Aucun fichier n\'a été modifié.',
+    };
+  }
+
+  const protectedDirs = ['c:\\windows', 'c:\\program files', 'c:\\program files (x86)', 'c:\\programdata', 'c:\\$recycle.bin', 'c:\\system volume information'];
+  if (protectedDirs.some(p => normSource === p || normSource.startsWith(p + path.sep) || normDest === p || normDest.startsWith(p + path.sep))) {
+    return {
+      success: false,
+      error: 'L\'opération concerne un emplacement système protégé ou sensible. Le déplacement est refusé.',
+    };
+  }
+
+  const targetPath = path.join(destDirPath, newName);
+  try {
+    await fs.promises.access(targetPath);
+    return {
+      success: false,
+      error: `Un ${sourceStat.isDirectory() ? 'dossier' : 'fichier'} portant ce nom existe déjà dans la destination. Aucun fichier n'a été modifié.`,
+      code: 'EEXIST',
+    };
+  } catch {
+    // Expected targetPath does not exist
+  }
+
+  activeMoves.set(moveId, { cancelled: false });
+
+  const notifyProgress = (data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('fs:moveProgress', { moveId, ...data });
+    }
+  };
+
+  const sourceRoot = path.parse(sourcePath).root.toLowerCase();
+  const destRoot = path.parse(destDirPath).root.toLowerCase();
+  const isSameVolume = sourceRoot === destRoot;
+
+  try {
+    if (isSameVolume) {
+      notifyProgress({ currentItem: newName, percentage: 50, movedCount: 0, totalCount: 1 });
+      if (activeMoves.get(moveId)?.cancelled) {
+        throw { code: 'CANCELLED' };
+      }
+
+      await fs.promises.rename(sourcePath, targetPath);
+
+      try {
+        await fs.promises.access(targetPath);
+      } catch {
+        return {
+          success: false,
+          error: 'Impossible de vérifier la destination après déplacement. Le fichier original n\'a pas été déplacé.',
+        };
+      }
+
+      notifyProgress({ currentItem: newName, percentage: 100, movedCount: 1, totalCount: 1 });
+      return { success: true, targetPath: targetPath.replace(/\\/g, '/'), sameVolume: true };
+    } else {
+      if (!sourceStat.isDirectory()) {
+        notifyProgress({ currentItem: newName, percentage: 30, movedCount: 0, totalCount: 1 });
+
+        if (activeMoves.get(moveId)?.cancelled) {
+          throw { code: 'CANCELLED' };
+        }
+
+        await fs.promises.copyFile(sourcePath, targetPath);
+
+        if (activeMoves.get(moveId)?.cancelled) {
+          try { await fs.promises.unlink(targetPath); } catch {}
+          throw { code: 'CANCELLED' };
+        }
+
+        const checkStat = await fs.promises.stat(targetPath);
+        if (sourceStat.size > 0 && checkStat.size === 0) {
+          try { await fs.promises.unlink(targetPath); } catch {}
+          return { success: false, error: 'La copie intermédiaire est incomplète. Le fichier original n\'a pas été modifié.' };
+        }
+
+        await fs.promises.unlink(sourcePath);
+
+        notifyProgress({ currentItem: newName, percentage: 100, movedCount: 1, totalCount: 1 });
+        return { success: true, targetPath: targetPath.replace(/\\/g, '/'), sameVolume: false };
+      } else {
+        const allEntries = [];
+        async function collectEntries(srcDir, relativePath = '') {
+          const entries = await fs.promises.readdir(srcDir, { withFileTypes: true });
+          for (const entry of entries) {
+            const entrySrc = path.join(srcDir, entry.name);
+            const entryRel = path.join(relativePath, entry.name);
+            allEntries.push({ src: entrySrc, rel: entryRel, isDir: entry.isDirectory() });
+            if (entry.isDirectory()) await collectEntries(entrySrc, entryRel);
+          }
+        }
+        await collectEntries(sourcePath);
+
+        const totalCount = allEntries.length + 1;
+        let copiedCount = 0;
+
+        await fs.promises.mkdir(targetPath, { recursive: true });
+        copiedCount++;
+        notifyProgress({ currentItem: newName, percentage: Math.round((copiedCount / totalCount) * 100), movedCount: copiedCount, totalCount });
+
+        for (const item of allEntries) {
+          if (activeMoves.get(moveId)?.cancelled) {
+            throw { code: 'CANCELLED' };
+          }
+          const itemTarget = path.join(targetPath, item.rel);
+          if (item.isDir) {
+            await fs.promises.mkdir(itemTarget, { recursive: true });
+          } else {
+            await fs.promises.copyFile(item.src, itemTarget);
+          }
+          copiedCount++;
+          notifyProgress({ currentItem: item.rel, percentage: Math.round((copiedCount / totalCount) * 100), movedCount: copiedCount, totalCount });
+        }
+
+        if (activeMoves.get(moveId)?.cancelled) {
+          throw { code: 'CANCELLED' };
+        }
+
+        await fs.promises.rm(sourcePath, { recursive: true, force: true });
+
+        return { success: true, targetPath: targetPath.replace(/\\/g, '/'), sameVolume: false };
+      }
+    }
+  } catch (err) {
+    if (!isSameVolume && fs.existsSync(targetPath)) {
+      try { await fs.promises.rm(targetPath, { recursive: true, force: true }); } catch {}
+    }
+
+    if (err && (err.code === 'CANCELLED' || activeMoves.get(moveId)?.cancelled)) {
+      return {
+        success: false,
+        cancelled: true,
+        error: 'Le déplacement a été annulé. L’élément original est resté à son emplacement initial.',
+      };
+    }
+
+    let msg = 'Le déplacement n\'a pas pu être terminé.';
+    if (err.code === 'ENOSPC') {
+      msg = 'Espace disque insuffisant pour réaliser le déplacement.';
+    } else if (err.code === 'EACCES' || err.code === 'EPERM') {
+      msg = 'Accès refusé lors du déplacement.';
+    } else if (err.code === 'EBUSY') {
+      msg = 'Fichier utilisé par une autre application.';
+    }
+    return {
+      success: false,
+      error: `${msg} L’élément original est resté à son emplacement initial.`,
+      code: err.code || 'UNKNOWN',
+    };
+  } finally {
+    activeMoves.delete(moveId);
+  }
+});
+
+ipcMain.handle('fs:cancelMove', async (_event, moveId) => {
+  if (moveId && activeMoves.has(moveId)) {
+    activeMoves.get(moveId).cancelled = true;
+    return { success: true };
+  }
+  return { success: false };
+});
+
+ipcMain.handle('fs:undoMove', async (_event, { sourcePath, targetPath }) => {
+  if (!sourcePath || !targetPath) {
+    return { success: false, error: 'Chemins invalides pour l\'annulation du déplacement.' };
+  }
+
+  try {
+    await fs.promises.access(targetPath);
+  } catch {
+    return {
+      success: false,
+      error: 'Le déplacement ne peut plus être annulé, car un autre fichier portant le même nom existe maintenant dans l\'ancien dossier ou l\'élément a été supprimé. Aucun fichier n’a été modifié.',
+    };
+  }
+
+  const sourceParent = path.dirname(sourcePath);
+  try {
+    await fs.promises.access(sourceParent);
+  } catch {
+    return {
+      success: false,
+      error: 'Le déplacement ne peut plus être annulé, car l’ancien dossier n’existe plus ou n’est pas accessible. Aucun fichier n’a été modifié.',
+    };
+  }
+
+  try {
+    await fs.promises.access(sourcePath);
+    return {
+      success: false,
+      error: 'Le déplacement ne peut plus être annulé, car un autre fichier portant le même nom existe maintenant dans l\'ancien dossier. Aucun fichier n\'a été modifié.',
+    };
+  } catch {
+    // Expected: sourcePath does not exist
+  }
+
+  const sourceRoot = path.parse(sourcePath).root.toLowerCase();
+  const targetRoot = path.parse(targetPath).root.toLowerCase();
+  const isSameVolume = sourceRoot === targetRoot;
+
+  try {
+    if (isSameVolume) {
+      await fs.promises.rename(targetPath, sourcePath);
+    } else {
+      const stat = await fs.promises.stat(targetPath);
+      if (!stat.isDirectory()) {
+        await fs.promises.copyFile(targetPath, sourcePath);
+        await fs.promises.unlink(targetPath);
+      } else {
+        const allEntries = [];
+        async function collectEntries(srcDir, relativePath = '') {
+          const entries = await fs.promises.readdir(srcDir, { withFileTypes: true });
+          for (const entry of entries) {
+            const entrySrc = path.join(srcDir, entry.name);
+            const entryRel = path.join(relativePath, entry.name);
+            allEntries.push({ src: entrySrc, rel: entryRel, isDir: entry.isDirectory() });
+            if (entry.isDirectory()) await collectEntries(entrySrc, entryRel);
+          }
+        }
+        await collectEntries(targetPath);
+        await fs.promises.mkdir(sourcePath, { recursive: true });
+        for (const item of allEntries) {
+          const itemDest = path.join(sourcePath, item.rel);
+          if (item.isDir) await fs.promises.mkdir(itemDest, { recursive: true });
+          else await fs.promises.copyFile(item.src, itemDest);
+        }
+        await fs.promises.rm(targetPath, { recursive: true, force: true });
+      }
+    }
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: `L'annulation a échoué : ${err.message || 'Erreur d\'accès'}. Aucun fichier n'a été modifié.`,
+    };
+  }
+});
+
 
 ipcMain.handle('fs:readFileBuffer', async (_event, filePath, options) => {
   const maxBytes = typeof options === 'number' ? options : options?.maxBytes;

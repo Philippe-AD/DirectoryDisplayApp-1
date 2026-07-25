@@ -736,6 +736,432 @@ export function renderCopyErrorModal(copyErrorMessage, theme = 'dark') {
   `;
 }
 
+export function renderMoveWizardModal(moveState, theme = 'dark') {
+  if (!moveState || !moveState.isOpen || !moveState.sourceItem) return '';
+  const {
+    step = 'wizard',
+    sourceItem,
+    destDirPath = '',
+    moveName = '',
+    validationError = null,
+    extensionWarning = null,
+    hasConflict = false,
+    progressState = { currentItem: '', percentage: 0, movedCount: 0, totalCount: 0 },
+    resultState = { sourcePath: '', targetPath: '', moveName: '' },
+  } = moveState;
+
+  const isDir = sourceItem.type === 'directory';
+  const itemTypeLabel = isDir ? 'dossier' : 'fichier';
+  const isLight = theme === 'light';
+
+  const futurePath = destDirPath && moveName ? `${destDirPath.replace(/\\/g, '/').replace(/\/+$/, '')}/${moveName}` : '';
+
+  if (step === 'wizard') {
+    return `
+      <div
+        id="modal-move-wizard-overlay"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-move-title"
+      >
+        <div class="${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#181528] text-slate-100 border-indigo-500/30'} border rounded-2xl p-6 max-w-xl w-full shadow-2xl space-y-4">
+          <div class="flex items-center gap-3">
+            <div class="p-2.5 ${isLight ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30'} border rounded-xl flex-shrink-0">
+              ${icons.move ? icons.move({ size: 22 }) : icons.folderOpen({ size: 22 })}
+            </div>
+            <div>
+              <h2 id="modal-move-title" class="text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}">
+                Assistant de déplacement — Déplacer ce ${itemTypeLabel}
+              </h2>
+              <p class="text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}">
+                Parcours guidé et sécurisé pour déplacer l'élément vers un autre dossier.
+              </p>
+            </div>
+          </div>
+
+          <!-- Section 1: Élément à déplacer -->
+          <div class="p-3.5 ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-slate-800'} border rounded-xl space-y-2 text-xs">
+            <div class="flex items-center justify-between border-b ${isLight ? 'border-slate-200' : 'border-slate-800'} pb-1.5">
+              <span class="text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-indigo-700' : 'text-indigo-300'}">Élément à déplacer</span>
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${isDir ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'} font-mono">${isDir ? 'Dossier' : 'Fichier'}</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div>
+                <span class="text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}">Nom :</span>
+                <p class="font-mono font-semibold ${isLight ? 'text-slate-800' : 'text-slate-200'} truncate" id="move-modal-source-name" title="${escapeHtml(sourceItem.name)}">${escapeHtml(sourceItem.name)}</p>
+              </div>
+              ${sourceItem.size !== undefined && !isDir ? `
+                <div>
+                  <span class="text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}">Taille :</span>
+                  <p class="font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'}">${formatFileSize(sourceItem.size)}</p>
+                </div>
+              ` : ''}
+            </div>
+            <div>
+              <span class="text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}">Emplacement actuel :</span>
+              <p class="font-mono text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'} break-all" id="move-modal-source-path">${escapeHtml(sourceItem.path)}</p>
+            </div>
+          </div>
+
+          <!-- Section 2: Destination -->
+          <div class="space-y-1.5">
+            <label class="block text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}">
+              Dossier de destination :
+            </label>
+            <div class="flex items-center gap-2">
+              <div class="flex-1 px-3 py-2 text-xs font-mono rounded-xl border ${isLight ? 'border-slate-300 bg-slate-100 text-slate-800' : 'border-slate-700 bg-slate-900 text-slate-200'} truncate" id="move-modal-dest-path" title="${escapeHtml(destDirPath)}">
+                ${escapeHtml(destDirPath || 'Aucun dossier choisi')}
+              </div>
+              <button
+                id="btn-move-browse-dest"
+                type="button"
+                class="px-3 py-2 rounded-xl text-xs font-medium ${isLight ? 'bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-300' : 'bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40'} transition-colors flex-shrink-0"
+              >
+                ${icons.folderOpen({ size: 14, className: 'inline mr-1' })}
+                <span>Choisir le dossier…</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 3: Futur chemin complet -->
+          ${futurePath ? `
+            <div class="space-y-1">
+              <span class="text-[11px] font-semibold ${isLight ? 'text-slate-600' : 'text-slate-400'}">Futur chemin complet :</span>
+              <p class="font-mono text-[11px] p-2 rounded-xl border ${isLight ? 'bg-slate-100 border-slate-300 text-indigo-900' : 'bg-slate-900/80 border-slate-800 text-indigo-300'} break-all font-semibold" id="move-modal-future-path">
+                ${escapeHtml(futurePath)}
+              </p>
+            </div>
+          ` : ''}
+
+          <!-- Section 4: Nom de l'élément -->
+          <div class="space-y-1.5">
+            <label for="input-move-name" class="block text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}">
+              Nom de l'élément :
+            </label>
+            <input
+              type="text"
+              id="input-move-name"
+              value="${escapeHtml(moveName)}"
+              class="w-full px-3.5 py-2 text-xs font-mono rounded-xl border ${validationError || hasConflict ? 'border-red-500 focus:ring-red-500' : (isLight ? 'border-slate-300 bg-white text-slate-900 focus:ring-indigo-500' : 'border-slate-700 bg-slate-900 text-slate-100 focus:ring-indigo-500')} focus:outline-none focus:ring-2 shadow-inner"
+              placeholder="Nom de l'élément..."
+              autocomplete="off"
+              spellcheck="false"
+            />
+            ${validationError ? `
+              <p id="move-validation-error" class="text-[11px] text-red-500 font-medium flex items-center gap-1 mt-1">
+                ${icons.alertCircle({ size: 13, className: 'flex-shrink-0' })}
+                <span>${escapeHtml(validationError)}</span>
+              </p>
+            ` : ''}
+          </div>
+
+          <!-- Section 5: Extension Warning -->
+          ${extensionWarning ? `
+            <div id="move-extension-warning" class="p-3 bg-amber-500/15 border border-amber-500/40 rounded-xl text-amber-300 text-xs flex items-start gap-2.5">
+              ${icons.alertCircle({ size: 16, className: 'text-amber-400 flex-shrink-0 mt-0.5' })}
+              <div class="text-[11px] leading-relaxed">
+                <span class="font-bold">Avertissement modification d'extension :</span>
+                <p class="mt-0.5">${escapeHtml(extensionWarning)}</p>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Section 6: Conflict Box -->
+          ${hasConflict ? `
+            <div id="move-conflict-box" class="p-3.5 bg-red-950/40 border border-red-500/50 rounded-xl text-xs space-y-2.5">
+              <div class="flex items-center gap-2 text-red-400 font-semibold text-xs">
+                ${icons.alertCircle({ size: 16, className: 'flex-shrink-0' })}
+                <span>Nom déjà existant dans la destination !</span>
+              </div>
+              <p class="text-[11px] text-red-200">
+                Un ${itemTypeLabel} nommé <span class="font-mono font-bold">${escapeHtml(moveName)}</span> existe déjà dans ce dossier.
+                Afin d'éviter toute perte de données, aucun élément ne sera remplacé ni fusionné.
+              </p>
+              <div class="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  id="btn-move-conflict-edit"
+                  type="button"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-100 transition-colors"
+                >
+                  Modifier le nom
+                </button>
+                <button
+                  id="btn-move-conflict-browse"
+                  type="button"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+                >
+                  Choisir une autre destination
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Section 7: Permanent Explanation of Consequences -->
+          <div id="move-consequences-text" class="p-3 ${isLight ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-indigo-950/40 border-indigo-500/30 text-indigo-200'} border rounded-xl text-xs leading-relaxed space-y-1">
+            <p class="font-semibold">Après le déplacement, cet élément ne sera plus présent dans son dossier actuel. Son contenu ne sera pas modifié.</p>
+            <p class="font-normal text-[11px] opacity-90">Cette opération ne créera pas une deuxième copie permanente.</p>
+          </div>
+
+          <!-- Buttons -->
+          <div class="flex items-center justify-end gap-2.5 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}">
+            <button
+              id="btn-move-modal-cancel"
+              type="button"
+              class="px-4 py-2 rounded-xl text-xs font-medium ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'} transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+            >
+              Annuler
+            </button>
+            <button
+              id="btn-move-modal-next"
+              type="button"
+              ${validationError || hasConflict || !destDirPath ? 'disabled' : ''}
+              class="px-4 py-2 rounded-xl text-xs font-medium ${validationError || hasConflict || !destDirPath ? 'bg-indigo-400/40 text-indigo-200/50 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-400'} transition-all"
+            >
+              Suivant
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (step === 'confirm') {
+    return `
+      <div
+        id="modal-move-confirm-overlay"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-move-confirm-title"
+      >
+        <div class="${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#181528] text-slate-100 border-indigo-500/30'} border rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+          <div class="flex items-center gap-3 text-indigo-400">
+            <div class="p-2.5 ${isLight ? 'bg-indigo-100 text-indigo-700' : 'bg-indigo-600/20 text-indigo-300'} border border-indigo-500/30 rounded-xl flex-shrink-0">
+              ${icons.move ? icons.move({ size: 22 }) : icons.folderOpen({ size: 22 })}
+            </div>
+            <h2 id="modal-move-confirm-title" class="text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}">
+              Résumé avant confirmation du déplacement
+            </h2>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <p class="font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}">Vous allez déplacer :</p>
+            <div class="p-2.5 rounded-xl font-mono ${isLight ? 'bg-slate-100 text-indigo-800 border-slate-300' : 'bg-slate-900 text-indigo-300 border-slate-800'} border break-all font-semibold" id="confirm-move-source">
+              ${escapeHtml(sourceItem.path)}
+            </div>
+
+            <p class="font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}">vers :</p>
+            <div class="p-2.5 rounded-xl font-mono ${isLight ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-slate-900 text-emerald-300 border-slate-800'} border break-all font-semibold" id="confirm-move-dest">
+              ${escapeHtml(futurePath || destDirPath)}
+            </div>
+
+            <div class="p-3 rounded-xl ${isLight ? 'bg-indigo-50 text-indigo-900 border-indigo-200' : 'bg-indigo-950/40 text-indigo-200 border-indigo-500/30'} border text-[11px] space-y-1">
+              <p class="font-medium">• Après l’opération, cet élément ne sera plus présent dans son dossier d’origine.</p>
+              <p class="font-medium">• Son contenu ne sera pas modifié.</p>
+              <p class="font-medium">• Aucun fichier ou dossier existant ne sera remplacé.</p>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-2.5 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}">
+            <button
+              id="btn-move-confirm-back"
+              type="button"
+              class="px-4 py-2 rounded-xl text-xs font-medium ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'} transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+            >
+              Retour
+            </button>
+            <button
+              id="btn-move-confirm-execute"
+              type="button"
+              class="px-4 py-2 rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            >
+              Confirmer le déplacement
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (step === 'progress') {
+    const percentage = progressState.percentage || 0;
+    return `
+      <div
+        id="modal-move-progress-overlay"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-move-progress-title"
+      >
+        <div class="${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#181528] text-slate-100 border-indigo-500/30'} border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 text-center">
+          <div class="flex items-center justify-center">
+            <div class="p-3 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 rounded-2xl animate-pulse">
+              ${icons.move ? icons.move({ size: 28 }) : icons.folderOpen({ size: 28 })}
+            </div>
+          </div>
+          <h2 id="modal-move-progress-title" class="text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}">
+            Déplacement en cours…
+          </h2>
+
+          <div class="space-y-2 text-xs">
+            <p class="font-mono text-indigo-300 text-[11px] truncate max-w-xs mx-auto" id="move-progress-item-name">
+              ${escapeHtml(progressState.currentItem || sourceItem.name)}
+            </p>
+            <p class="text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'} truncate">
+              Destination : <span class="font-mono">${escapeHtml(destDirPath)}</span>
+            </p>
+
+            <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden border border-slate-700 mt-3">
+              <div class="bg-gradient-to-r from-indigo-500 to-purple-500 h-2.5 rounded-full transition-all duration-200" style="width: ${percentage}%;"></div>
+            </div>
+            <p class="text-[10px] font-mono text-slate-400 text-right">${percentage}%</p>
+          </div>
+
+          <div class="pt-2 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}">
+            <button
+              id="btn-move-cancel-progress"
+              type="button"
+              class="px-4 py-2 rounded-xl text-xs font-medium bg-red-600/80 hover:bg-red-600 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
+            >
+              Annuler le déplacement
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (step === 'success') {
+    return `
+      <div
+        id="modal-move-success-overlay"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-move-success-title"
+      >
+        <div class="${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#181528] text-slate-100 border-indigo-500/30'} border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+          <div class="flex items-center gap-3 text-emerald-400">
+            <div class="p-2.5 bg-emerald-500/20 border border-emerald-500/40 rounded-xl flex-shrink-0">
+              ${icons.refreshCw({ size: 22 })}
+            </div>
+            <h2 id="modal-move-success-title" class="text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}">
+              Le ${itemTypeLabel} a été déplacé.
+            </h2>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <div>
+              <span class="text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}">Ancien emplacement :</span>
+              <p class="font-mono text-[11px] ${isLight ? 'text-slate-700' : 'text-slate-300'} break-all mt-0.5 p-2 rounded-lg bg-slate-900/40 border border-slate-800">
+                ${escapeHtml(resultState.sourcePath || sourceItem.path)}
+              </p>
+            </div>
+            <div>
+              <span class="text-[11px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}">Nouvel emplacement :</span>
+              <p class="font-mono text-[11px] text-emerald-400 font-semibold break-all mt-0.5 p-2 rounded-lg bg-slate-900/60 border border-emerald-500/30">
+                ${escapeHtml(resultState.targetPath)}
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-2 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'} flex-wrap">
+            <button
+              id="btn-move-success-show"
+              type="button"
+              class="px-3 py-2 rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+            >
+              Afficher l'élément
+            </button>
+            <button
+              id="btn-move-success-undo"
+              type="button"
+              class="px-3 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+            >
+              Annuler le déplacement
+            </button>
+            <button
+              id="btn-move-success-close"
+              type="button"
+              class="px-3 py-2 rounded-xl text-xs font-medium ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'} transition-colors"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  return '';
+}
+
+export function renderMoveUndoToast(moveUndoToastState, theme = 'dark') {
+  if (!moveUndoToastState || !moveUndoToastState.visible) return '';
+  const isLight = theme === 'light';
+
+  return `
+    <div
+      id="undo-move-toast"
+      role="status"
+      aria-live="polite"
+      class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 ${isLight ? 'bg-slate-900 text-slate-100 shadow-2xl border border-slate-700' : 'bg-[#181528] text-slate-100 shadow-2xl border border-indigo-500/40'} rounded-2xl text-xs"
+    >
+      <div class="p-1 bg-emerald-500/20 text-emerald-400 rounded-lg flex-shrink-0">
+        ${icons.move ? icons.move({ size: 16 }) : icons.folderOpen({ size: 16 })}
+      </div>
+      <span class="font-medium">${escapeHtml(moveUndoToastState.message || 'L\'élément a été replacé à son emplacement d\'origine.')}</span>
+      <button
+        id="btn-dismiss-move-toast"
+        type="button"
+        class="ml-2 p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
+        aria-label="Fermer la notification"
+      >
+        ${icons.x({ size: 14 })}
+      </button>
+    </div>
+  `;
+}
+
+export function renderMoveErrorModal(moveErrorMessage, theme = 'dark') {
+  if (!moveErrorMessage) return '';
+  const isLight = theme === 'light';
+
+  return `
+    <div
+      id="modal-move-error-overlay"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-move-error-title"
+    >
+      <div class="${isLight ? 'bg-white text-slate-900 border-red-200' : 'bg-[#181528] text-slate-100 border-red-500/40'} border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div class="flex items-center gap-3 text-red-500">
+          <div class="p-2.5 bg-red-500/20 border border-red-500/40 rounded-xl flex-shrink-0">
+            ${icons.alertCircle({ size: 22 })}
+          </div>
+          <h2 id="modal-move-error-title" class="text-sm font-bold text-red-500">Impossible de déplacer l'élément</h2>
+        </div>
+
+        <p class="text-xs ${isLight ? 'text-slate-700' : 'text-slate-300'} leading-relaxed" id="move-error-message-text">
+          ${escapeHtml(moveErrorMessage)}
+        </p>
+
+        <div class="flex items-center justify-end pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}">
+          <button
+            id="btn-move-error-dismiss"
+            type="button"
+            class="px-4 py-2 rounded-xl text-xs font-medium bg-red-600 hover:bg-red-500 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
+          >
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export function renderMainLayout(
   displayName,
   currentPath,
@@ -757,7 +1183,11 @@ export function renderMainLayout(
   renameErrorMessage = null,
   copyModalState = null,
   copyUndoToastState = null,
-  copyErrorMessage = null
+  copyErrorMessage = null,
+  moveModalState = null,
+  moveUndoToastState = null,
+  moveErrorMessage = null
+
 ) {
   const selectedPath = selectedItem ? selectedItem.path : null;
   const isLight = theme === 'light';
@@ -1076,6 +1506,9 @@ export function renderMainLayout(
       ${copyModalState?.isOpen ? renderCopyWizardModal(copyModalState, theme) : ''}
       ${copyUndoToastState?.visible ? renderCopyUndoToast(copyUndoToastState, theme) : ''}
       ${copyErrorMessage ? renderCopyErrorModal(copyErrorMessage, theme) : ''}
+      ${moveModalState?.isOpen ? renderMoveWizardModal(moveModalState, theme) : ''}
+      ${moveUndoToastState?.visible ? renderMoveUndoToast(moveUndoToastState, theme) : ''}
+      ${moveErrorMessage ? renderMoveErrorModal(moveErrorMessage, theme) : ''}
     </div>
   `;
 }

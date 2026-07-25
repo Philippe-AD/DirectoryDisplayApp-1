@@ -62,12 +62,10 @@ describe('2. Technical Protection Against Unintended File Modifications', () => 
     const panelHtml = renderPreviewPanel(item, { status: 'text', preview: { kind: 'text', content: 'hello' } }, 'blob:abc');
 
     expect(treeHtml.toLowerCase()).not.toContain('supprimer');
-    expect(treeHtml.toLowerCase()).not.toContain('déplacer');
-    expect(treeHtml.toLowerCase()).not.toContain('copier');
 
     expect(panelHtml.toLowerCase()).not.toContain('supprimer');
-    expect(panelHtml.toLowerCase()).not.toContain('déplacer');
-    expect(panelHtml.toLowerCase()).not.toContain('copier');
+    expect(panelHtml.toLowerCase()).toContain('déplacer vers…');
+    expect(panelHtml.toLowerCase()).toContain('créer une copie…');
   });
 
   it('disables drag-and-drop on treeview items with draggable="false"', () => {

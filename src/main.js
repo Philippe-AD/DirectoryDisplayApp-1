@@ -9,6 +9,10 @@ import {
   cancelCopyOperation,
   undoCopyOperation,
   subscribeCopyProgress,
+  moveFileOrDirectory,
+  cancelMoveOperation,
+  undoMoveOperation,
+  subscribeMoveProgress,
 } from './fileSystem';
 import {
   isTextFile,
@@ -32,6 +36,10 @@ import {
   validateCopyTarget,
   generateAutoCopyName,
 } from './copyValidation';
+import {
+  validateMoveTarget,
+  validateMoveName,
+} from './moveValidation';
 
 export { sortNodePaths, getVisibleTreeNodes };
 
@@ -54,7 +62,8 @@ const state = {
   showExternalOpenModal: false,
   skipExternalOpenWarning: false,
   pendingExternalOpenPath: null,
-  theme: 'light',
+  externalOpenCandidatePath: null,
+  theme: 'dark',
   renameModal: {
     isOpen: false,
     step: 'input', // 'input' | 'confirm'
@@ -105,6 +114,32 @@ const state = {
     message: '',
   },
   copyErrorMessage: null,
+  moveModal: {
+    isOpen: false,
+    step: 'wizard', // 'wizard' | 'confirm' | 'progress' | 'success'
+    sourceItem: null,
+    destDirPath: '',
+    moveName: '',
+    validationError: null,
+    extensionWarning: null,
+    hasConflict: false,
+    progressState: { currentItem: '', percentage: 0, movedCount: 0, totalCount: 0 },
+    resultState: { sourcePath: '', targetPath: '', moveName: '' },
+    moveId: null,
+  },
+  lastMoveUndoState: {
+    available: false,
+    sourcePath: '',
+    targetPath: '',
+    moveName: '',
+    isDir: false,
+    destDirPath: '',
+  },
+  moveUndoToast: {
+    visible: false,
+    message: '',
+  },
+  moveErrorMessage: null,
 };
 
 let previewRequestId = 0;
@@ -182,7 +217,10 @@ function render() {
     state.renameErrorMessage,
     state.copyModal,
     state.copyUndoToast,
-    state.copyErrorMessage
+    state.copyErrorMessage,
+    state.moveModal,
+    state.moveUndoToast,
+    state.moveErrorMessage
   );
 
   root.innerHTML = html;
@@ -812,6 +850,401 @@ export function handleShowCreatedCopy() {
   render();
 }
 
+export function openMoveModal(item = state.selectedItem) {
+  if (!item) return;
+
+  let defaultDest = item.parentPath || '';
+  if (!defaultDest && item.path) {
+    const parts = item.path.split(/[/\\]/).filter(Boolean);
+    if (parts.length > 1) {
+      parts.pop();
+      defaultDest = item.path.startsWith('/') ? '/' + parts.join('/') : parts.join('/');
+    } else {
+      defaultDest = item.path;
+    }
+  }
+  if (!defaultDest && state.rootPath) {
+    defaultDest = state.rootPath;
+  }
+
+  state.moveModal = {
+    isOpen: true,
+    step: 'wizard',
+    sourceItem: item,
+    destDirPath: defaultDest,
+    moveName: item.name,
+    validationError: null,
+    extensionWarning: null,
+    hasConflict: false,
+    progressState: { currentItem: '', percentage: 0, movedCount: 0, totalCount: 0 },
+    resultState: { sourcePath: item.path, targetPath: '', moveName: item.name },
+    moveId: 'move_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+  };
+
+  validateCurrentMoveInput();
+  render();
+
+  setTimeout(() => {
+    const inputEl = document.getElementById('input-move-name');
+    if (inputEl) {
+      inputEl.focus();
+      if (item.type !== 'directory') {
+        const { baseName } = splitFileName(item.name);
+        if (baseName && baseName.length > 0) {
+          inputEl.setSelectionRange(0, baseName.length);
+        } else {
+          inputEl.select();
+        }
+      } else {
+        inputEl.select();
+      }
+    }
+  }, 50);
+}
+
+export function validateCurrentMoveInput() {
+  if (!state.moveModal.isOpen || !state.moveModal.sourceItem) return;
+
+  const item = state.moveModal.sourceItem;
+  const moveName = state.moveModal.moveName;
+  const destDirPath = state.moveModal.destDirPath;
+
+  const targetCheck = validateMoveTarget(item.path, destDirPath, item.type === 'directory');
+  if (!targetCheck.isValid) {
+    state.moveModal.validationError = targetCheck.error;
+    state.moveModal.hasConflict = false;
+    state.moveModal.extensionWarning = null;
+    return;
+  }
+
+  let destChildrenNames = [];
+  if (state.nodes.has(destDirPath)) {
+    const parentNode = state.nodes.get(destDirPath);
+    destChildrenNames = (parentNode.childrenPaths || [])
+      .map((cp) => state.nodes.get(cp)?.name)
+      .filter(Boolean);
+  }
+
+  const nameCheck = validateMoveName({
+    currentName: item.name,
+    moveName,
+    isDirectory: item.type === 'directory',
+    parentChildrenNames: destChildrenNames,
+    parentPath: destDirPath,
+    maxPathLength: 260,
+  });
+
+  if (!nameCheck.isValid) {
+    if (nameCheck.hasConflict) {
+      state.moveModal.validationError = null;
+      state.moveModal.hasConflict = true;
+    } else {
+      state.moveModal.validationError = nameCheck.error;
+      state.moveModal.hasConflict = false;
+    }
+  } else {
+    state.moveModal.validationError = null;
+    state.moveModal.hasConflict = false;
+  }
+
+  const extRes = isExtensionModified(item.name, moveName, item.type === 'directory');
+  state.moveModal.extensionWarning = extRes.isModified
+    ? `Vous modifiez l’extension ${extRes.oldExt || 'du fichier'}. Le fichier pourrait ne plus s’ouvrir correctement.`
+    : null;
+}
+
+export function closeMoveModal() {
+  state.moveModal = {
+    isOpen: false,
+    step: 'wizard',
+    sourceItem: null,
+    destDirPath: '',
+    moveName: '',
+    validationError: null,
+    extensionWarning: null,
+    hasConflict: false,
+    progressState: { currentItem: '', percentage: 0, movedCount: 0, totalCount: 0 },
+    resultState: { sourcePath: '', targetPath: '', moveName: '' },
+    moveId: null,
+  };
+  render();
+}
+
+export async function handleChooseMoveDestination() {
+  if (!state.moveModal.isOpen) return;
+  try {
+    const handle = await openDirectory();
+    if (handle && handle.path) {
+      state.moveModal.destDirPath = handle.path;
+      validateCurrentMoveInput();
+      render();
+    }
+  } catch {
+    // Aborted or unavailable
+  }
+}
+
+export function submitMoveWizardStep() {
+  validateCurrentMoveInput();
+  if (state.moveModal.validationError || state.moveModal.hasConflict) {
+    return;
+  }
+  state.moveModal.step = 'confirm';
+  render();
+}
+
+export async function executeMove() {
+  if (!state.moveModal.isOpen || !state.moveModal.sourceItem) return;
+  if (state.moveModal.validationError || state.moveModal.hasConflict) return;
+
+  const { sourceItem, destDirPath, moveName, moveId } = state.moveModal;
+
+  state.moveModal.step = 'progress';
+  state.moveModal.progressState = {
+    currentItem: sourceItem.name,
+    percentage: 0,
+    movedCount: 0,
+    totalCount: 1,
+  };
+  render();
+
+  const unsubscribeProgress = subscribeMoveProgress((data) => {
+    if (state.moveModal.isOpen && state.moveModal.moveId === data.moveId) {
+      state.moveModal.progressState = {
+        currentItem: data.currentItem || '',
+        percentage: data.percentage || 0,
+        movedCount: data.movedCount || 0,
+        totalCount: data.totalCount || 0,
+      };
+      const nameEl = document.getElementById('move-progress-item-name');
+      if (nameEl) nameEl.textContent = data.currentItem || sourceItem.name;
+      const barEl = document.querySelector('#modal-move-progress-overlay .bg-gradient-to-r');
+      if (barEl) barEl.style.width = `${data.percentage || 0}%`;
+    }
+  });
+
+  try {
+    const res = await moveFileOrDirectory({
+      sourcePath: sourceItem.path,
+      destDirPath,
+      newName: moveName,
+      moveId,
+    });
+
+    unsubscribeProgress();
+
+    if (res.cancelled) {
+      state.moveModal.isOpen = false;
+      state.moveErrorMessage = 'Le déplacement a été annulé. L’élément original est resté à son emplacement initial.';
+      render();
+      return;
+    }
+
+    if (!res.success) {
+      state.moveModal.isOpen = false;
+      state.moveErrorMessage = res.error || 'Le déplacement n\'a pas pu être terminé. L’élément original est resté à son emplacement initial.';
+      render();
+      return;
+    }
+
+    const createdTargetPath = res.targetPath;
+    const oldPath = sourceItem.path;
+
+    const node = state.nodes.get(oldPath) || sourceItem;
+
+    if (node.parentPath && state.nodes.has(node.parentPath)) {
+      const oldParent = state.nodes.get(node.parentPath);
+      if (Array.isArray(oldParent.childrenPaths)) {
+        oldParent.childrenPaths = oldParent.childrenPaths.filter((p) => p !== oldPath);
+      }
+    }
+    state.nodes.delete(oldPath);
+
+    node.path = createdTargetPath;
+    node.name = moveName;
+    node.parentPath = destDirPath;
+
+    if (node.file) {
+      node.file = new File([node.file], moveName, { type: node.file.type });
+    }
+
+    if (state.nodes.has(destDirPath)) {
+      const destNode = state.nodes.get(destDirPath);
+      node.level = (destNode.level || 0) + 1;
+      if (Array.isArray(destNode.childrenPaths)) {
+        if (!destNode.childrenPaths.includes(createdTargetPath)) {
+          destNode.childrenPaths.push(createdTargetPath);
+        }
+        destNode.childrenPaths = sortNodePaths(destNode.childrenPaths, state.nodes);
+      }
+    }
+
+    state.nodes.set(createdTargetPath, node);
+
+    if (sourceItem.type === 'directory') {
+      const oldPrefix = oldPath + '/';
+      const newPrefix = createdTargetPath + '/';
+      const entriesToUpdate = [];
+
+      for (const [pathKey, childNode] of state.nodes.entries()) {
+        if (pathKey.startsWith(oldPrefix)) {
+          entriesToUpdate.push({ oldKey: pathKey, childNode });
+        }
+      }
+
+      for (const { oldKey, childNode } of entriesToUpdate) {
+        state.nodes.delete(oldKey);
+        const updatedPath = childNode.path.replace(oldPrefix, newPrefix);
+        const updatedParent = childNode.parentPath ? childNode.parentPath.replace(oldPrefix, newPrefix) : createdTargetPath;
+        childNode.path = updatedPath;
+        childNode.parentPath = updatedParent;
+        if (Array.isArray(childNode.childrenPaths)) {
+          childNode.childrenPaths = childNode.childrenPaths.map((cp) => (cp.startsWith(oldPrefix) ? cp.replace(oldPrefix, newPrefix) : cp));
+        }
+        state.nodes.set(updatedPath, childNode);
+      }
+    }
+
+    if (state.treeRootPath === oldPath) state.treeRootPath = createdTargetPath;
+    if (state.rootPath === oldPath) {
+      state.rootPath = createdTargetPath;
+      state.rootName = moveName;
+    }
+
+    state.selectedItem = node;
+
+    state.lastMoveUndoState = {
+      available: true,
+      sourcePath: oldPath,
+      targetPath: createdTargetPath,
+      moveName,
+      isDir: sourceItem.type === 'directory',
+      destDirPath,
+    };
+
+    state.moveModal.resultState = {
+      sourcePath: oldPath,
+      targetPath: createdTargetPath,
+      moveName,
+    };
+    state.moveModal.step = 'success';
+
+    state.moveUndoToast = {
+      visible: true,
+      message: `Le ${sourceItem.type === 'directory' ? 'dossier' : 'fichier'} a été déplacé.`,
+    };
+
+    render();
+  } catch (err) {
+    unsubscribeProgress();
+    state.moveModal.isOpen = false;
+    state.moveErrorMessage = err instanceof Error ? err.message : 'Le déplacement n\'a pas pu être terminé. L’élément original est resté à son emplacement initial.';
+    render();
+  }
+}
+
+export async function handleCancelMoveInProgress() {
+  if (state.moveModal.moveId) {
+    await cancelMoveOperation(state.moveModal.moveId);
+  }
+}
+
+export async function handleUndoMove() {
+  if (!state.lastMoveUndoState || !state.lastMoveUndoState.available) return;
+
+  const { sourcePath, targetPath, isDir, moveName } = state.lastMoveUndoState;
+
+  const res = await undoMoveOperation({ sourcePath, targetPath });
+  if (!res.success) {
+    state.moveUndoToast.visible = false;
+    state.moveErrorMessage = res.error || "Impossible d'annuler le déplacement. L'élément original n'a pas été modifié.";
+    render();
+    return;
+  }
+
+  const node = state.nodes.get(targetPath);
+  if (node) {
+    state.nodes.delete(targetPath);
+    if (node.parentPath && state.nodes.has(node.parentPath)) {
+      const destParent = state.nodes.get(node.parentPath);
+      if (Array.isArray(destParent.childrenPaths)) {
+        destParent.childrenPaths = destParent.childrenPaths.filter((p) => p !== targetPath);
+      }
+    }
+
+    const sourceParentPath = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
+    node.path = sourcePath;
+    node.parentPath = sourceParentPath;
+
+    if (sourceParentPath && state.nodes.has(sourceParentPath)) {
+      const srcParent = state.nodes.get(sourceParentPath);
+      node.level = (srcParent.level || 0) + 1;
+      if (Array.isArray(srcParent.childrenPaths)) {
+        if (!srcParent.childrenPaths.includes(sourcePath)) {
+          srcParent.childrenPaths.push(sourcePath);
+        }
+        srcParent.childrenPaths = sortNodePaths(srcParent.childrenPaths, state.nodes);
+      }
+    }
+
+    state.nodes.set(sourcePath, node);
+
+    if (isDir) {
+      const targetPrefix = targetPath + '/';
+      const sourcePrefix = sourcePath + '/';
+      const entriesToUpdate = [];
+
+      for (const [pathKey, childNode] of state.nodes.entries()) {
+        if (pathKey.startsWith(targetPrefix)) {
+          entriesToUpdate.push({ targetKey: pathKey, childNode });
+        }
+      }
+
+      for (const { targetKey, childNode } of entriesToUpdate) {
+        state.nodes.delete(targetKey);
+        const updatedPath = childNode.path.replace(targetPrefix, sourcePrefix);
+        const updatedParent = childNode.parentPath ? childNode.parentPath.replace(targetPrefix, sourcePrefix) : sourcePath;
+        childNode.path = updatedPath;
+        childNode.parentPath = updatedParent;
+        if (Array.isArray(childNode.childrenPaths)) {
+          childNode.childrenPaths = childNode.childrenPaths.map((cp) => (cp.startsWith(targetPrefix) ? cp.replace(targetPrefix, sourcePrefix) : cp));
+        }
+        state.nodes.set(updatedPath, childNode);
+      }
+    }
+
+    if (state.treeRootPath === targetPath) state.treeRootPath = sourcePath;
+    if (state.rootPath === targetPath) {
+      state.rootPath = sourcePath;
+      state.rootName = moveName;
+    }
+
+    state.selectedItem = node;
+  }
+
+  state.lastMoveUndoState = { available: false };
+  state.moveUndoToast = {
+    visible: true,
+    message: "Le déplacement a été annulé. L'élément a retrouvé son emplacement d'origine.",
+  };
+
+  render();
+}
+
+export function handleShowMovedItem() {
+  const targetPath = state.moveModal?.resultState?.targetPath || state.lastMoveUndoState?.targetPath;
+  state.moveModal.isOpen = false;
+
+  if (targetPath && state.nodes.has(targetPath)) {
+    const movedNode = state.nodes.get(targetPath);
+    if (movedNode) {
+      handleNodeSingleClick(movedNode);
+      setTimeout(scrollToSelectedNode, 100);
+    }
+  }
+  render();
+}
+
 function bindMainEvents() {
   document.getElementById('btn-dismiss-error')?.addEventListener('click', () => {
     state.error = null;
@@ -1050,6 +1483,73 @@ function bindMainEvents() {
 
   document.getElementById('btn-copy-error-dismiss')?.addEventListener('click', () => {
     state.copyErrorMessage = null;
+    render();
+  });
+
+  document.getElementById('btn-trigger-move')?.addEventListener('click', () => {
+    if (state.selectedItem) {
+      openMoveModal(state.selectedItem);
+    }
+  });
+
+  const moveInputEl = document.getElementById('input-move-name');
+  if (moveInputEl) {
+    moveInputEl.addEventListener('input', (e) => {
+      state.moveModal.moveName = e.target.value;
+      validateCurrentMoveInput();
+      const submitBtn = document.getElementById('btn-move-modal-next');
+      const errorEl = document.getElementById('move-validation-error');
+      const conflictBox = document.getElementById('move-conflict-box');
+
+      if (submitBtn) {
+        if (state.moveModal.validationError || state.moveModal.hasConflict) {
+          submitBtn.disabled = true;
+          submitBtn.className = 'px-4 py-2 rounded-xl text-xs font-medium bg-indigo-400/40 text-indigo-200/50 cursor-not-allowed transition-all';
+        } else {
+          submitBtn.disabled = false;
+          submitBtn.className = 'px-4 py-2 rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all';
+        }
+      }
+
+      if (state.moveModal.validationError) {
+        if (!errorEl) {
+          render();
+        } else {
+          const spanEl = errorEl.querySelector('span');
+          if (spanEl) spanEl.textContent = state.moveModal.validationError;
+        }
+      } else if (errorEl || conflictBox || state.moveModal.hasConflict) {
+        render();
+      }
+    });
+  }
+
+  document.getElementById('btn-move-browse-dest')?.addEventListener('click', handleChooseMoveDestination);
+  document.getElementById('btn-move-conflict-edit')?.addEventListener('click', () => {
+    const inputEl = document.getElementById('input-move-name');
+    if (inputEl) inputEl.focus();
+  });
+  document.getElementById('btn-move-conflict-browse')?.addEventListener('click', handleChooseMoveDestination);
+  document.getElementById('btn-move-modal-cancel')?.addEventListener('click', closeMoveModal);
+  document.getElementById('btn-move-modal-next')?.addEventListener('click', submitMoveWizardStep);
+  document.getElementById('btn-move-confirm-back')?.addEventListener('click', () => {
+    state.moveModal.step = 'wizard';
+    render();
+  });
+  document.getElementById('btn-move-confirm-execute')?.addEventListener('click', executeMove);
+  document.getElementById('btn-move-cancel-progress')?.addEventListener('click', handleCancelMoveInProgress);
+  document.getElementById('btn-move-success-show')?.addEventListener('click', handleShowMovedItem);
+  document.getElementById('btn-move-success-undo')?.addEventListener('click', handleUndoMove);
+  document.getElementById('btn-move-success-close')?.addEventListener('click', closeMoveModal);
+
+  document.getElementById('btn-undo-move')?.addEventListener('click', handleUndoMove);
+  document.getElementById('btn-dismiss-move-toast')?.addEventListener('click', () => {
+    state.moveUndoToast.visible = false;
+    render();
+  });
+
+  document.getElementById('btn-move-error-dismiss')?.addEventListener('click', () => {
+    state.moveErrorMessage = null;
     render();
   });
 
