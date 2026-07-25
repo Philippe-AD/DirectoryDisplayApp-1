@@ -13,7 +13,7 @@ export function renderWelcomeScreen(error) {
           ${icons.folderOpen({ size: 32 })}
         </div>
         <h1 class="text-2xl font-bold text-white tracking-tight">DirectoryDisplayApp</h1>
-        <div class="mt-1 inline-block px-2.5 py-0.5 rounded-full bg-purple-950/80 border border-purple-500/30 text-[10px] font-mono text-purple-300">v1.0.0-rc.1</div>
+        <div class="mt-1 inline-block px-2.5 py-0.5 rounded-full bg-purple-950/80 border border-purple-500/30 text-[10px] font-mono text-purple-300">v1.0.0</div>
         <p class="text-slate-400 mt-2 text-xs leading-relaxed">Explorateur de fichiers guidé et sécurisé pour Windows</p>
 
         <div class="mt-6 space-y-3">

@@ -1,0 +1,442 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for src/icons.js</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../prettify.css" />
+    <link rel="stylesheet" href="../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../index.html">All files</a> / <a href="index.html">src</a> icons.js</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">82.5% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>33/40</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">100% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>3/3</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">82.05% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>32/39</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">82.5% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>33/40</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line high'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">419x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">24x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">14x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">18x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">26x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">13x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">27x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">18x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">32x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">33x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">32x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">33x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">export function iconSvg(pathSvg, { size = 20, className = '' } = {}) {
+  return `&lt;svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"&gt;${pathSvg}&lt;/svg&gt;`;
+}
+&nbsp;
+export const icons = {
+  search: (opts) =&gt;
+    iconSvg('&lt;circle cx="11" cy="11" r="8"/&gt;&lt;path d="m21 21-4.3-4.3"/&gt;', opts),
+&nbsp;
+  file: (opts) =&gt;
+    iconSvg('&lt;path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/&gt;&lt;path d="M14 2v4a2 2 0 0 0 2 2h4"/&gt;', opts),
+&nbsp;
+  fileText: (opts) =&gt;
+    iconSvg('&lt;path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/&gt;&lt;path d="M14 2v4a2 2 0 0 0 2 2h4"/&gt;&lt;path d="M10 9H8"/&gt;&lt;path d="M16 13H8"/&gt;&lt;path d="M16 17H8"/&gt;', opts),
+&nbsp;
+  folder: (opts) =&gt;
+    iconSvg('&lt;path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/&gt;', opts),
+&nbsp;
+  folderOpen: (opts) =&gt;
+    iconSvg('&lt;path d="M3 7v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 4H5a2 2 0 0 0-2 2"/&gt;&lt;path d="M3 10h18l-2 10H5L3 10z"/&gt;', opts),
+&nbsp;
+  folderTree: (opts) =&gt;
+    iconSvg('&lt;path d="M20 10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 3h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z"/&gt;&lt;path d="M20 21a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 14h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z"/&gt;&lt;path d="M4 3v18"/&gt;&lt;path d="M4 9h4"/&gt;&lt;path d="M4 17h4"/&gt;', opts),
+&nbsp;
+  chevronRight: (opts) =&gt;
+    iconSvg('&lt;path d="m9 18 6-6-6-6"/&gt;', opts),
+&nbsp;
+  chevronUp: (opts) =&gt;
+    iconSvg('&lt;path d="m18 15-6-6-6 6"/&gt;', opts),
+&nbsp;
+  chevronDown: (opts) =&gt;
+    iconSvg('&lt;path d="m6 9 6 6 6-6"/&gt;', opts),
+&nbsp;
+  x: (opts) =&gt;
+    iconSvg('&lt;path d="M18 6 6 18"/&gt;&lt;path d="m6 6 12 12"/&gt;', opts),
+&nbsp;
+  arrowLeft: <span class="fstat-no" title="function not covered" >(o</span>pts) =&gt;
+<span class="cstat-no" title="statement not covered" >    iconSvg('&lt;path d="m12 19-7-7 7-7"/&gt;&lt;path d="M19 12H5"/&gt;', opts),</span>
+&nbsp;
+  hardDrive: <span class="fstat-no" title="function not covered" >(o</span>pts) =&gt;
+<span class="cstat-no" title="statement not covered" >    iconSvg('&lt;line x1="22" x2="2" y1="12" y2="12"/&gt;&lt;path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/&gt;&lt;line x1="6" x2="6.01" y1="16" y2="16"/&gt;&lt;line x1="10" x2="10.01" y1="16" y2="16"/&gt;', opts),</span>
+&nbsp;
+  upload: <span class="fstat-no" title="function not covered" >(o</span>pts) =&gt;
+<span class="cstat-no" title="statement not covered" >    iconSvg('&lt;path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/&gt;&lt;polyline points="17 8 12 3 7 8"/&gt;&lt;line x1="12" x2="12" y1="3" y2="15"/&gt;', opts),</span>
+&nbsp;
+  download: (opts) =&gt;
+    iconSvg('&lt;path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/&gt;&lt;polyline points="7 10 12 15 17 10"/&gt;&lt;line x1="12" x2="12" y1="15" y2="3"/&gt;', opts),
+&nbsp;
+  alertCircle: (opts) =&gt;
+    iconSvg('&lt;circle cx="12" cy="12" r="10"/&gt;&lt;line x1="12" x2="12" y1="8" y2="12"/&gt;&lt;line x1="12" x2="12.01" y1="16" y2="16"/&gt;', opts),
+&nbsp;
+  image: (opts) =&gt;
+    iconSvg('&lt;rect width="18" height="18" x="3" y="3" rx="2" ry="2"/&gt;&lt;circle cx="9" cy="9" r="2"/&gt;&lt;path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/&gt;', opts),
+&nbsp;
+  panelRight: <span class="fstat-no" title="function not covered" >(o</span>pts) =&gt;
+<span class="cstat-no" title="statement not covered" >    iconSvg('&lt;rect width="18" height="18" x="3" y="3" rx="2"/&gt;&lt;path d="M15 3v18"/&gt;', opts),</span>
+&nbsp;
+  eye: (opts) =&gt;
+    iconSvg('&lt;path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/&gt;&lt;circle cx="12" cy="12" r="3"/&gt;', opts),
+&nbsp;
+  eyeOff: (opts) =&gt;
+    iconSvg('&lt;path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/&gt;&lt;path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/&gt;&lt;path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/&gt;&lt;line x1="2" x2="22" y1="2" y2="22"/&gt;', opts),
+&nbsp;
+  loader: (opts) =&gt;
+    iconSvg('&lt;path d="M12 2v4"/&gt;&lt;path d="m16.2 7.8 2.9-2.9"/&gt;&lt;path d="M18 12h4"/&gt;&lt;path d="m16.2 16.2 2.9 2.9"/&gt;&lt;path d="M12 18v4"/&gt;&lt;path d="m7.8 16.2-2.9 2.9"/&gt;&lt;path d="M2 12h4"/&gt;&lt;path d="m7.8 7.8-2.9-2.9"/&gt;', opts),
+&nbsp;
+  gripVertical: (opts) =&gt;
+    iconSvg('&lt;circle cx="9" cy="12" r="1"/&gt;&lt;circle cx="9" cy="5" r="1"/&gt;&lt;circle cx="9" cy="19" r="1"/&gt;&lt;circle cx="15" cy="12" r="1"/&gt;&lt;circle cx="15" cy="5" r="1"/&gt;&lt;circle cx="15" cy="19" r="1"/&gt;', opts),
+&nbsp;
+  music: (opts) =&gt;
+    iconSvg('&lt;path d="M9 18V5l12-2v13"/&gt;&lt;circle cx="6" cy="18" r="3"/&gt;&lt;circle cx="18" cy="16" r="3"/&gt;', opts),
+&nbsp;
+  video: (opts) =&gt;
+    iconSvg('&lt;path d="m22 8-6 4 6 4V8Z"/&gt;&lt;rect width="14" height="12" x="2" y="6" rx="2" ry="2"/&gt;', opts),
+&nbsp;
+  refreshCw: (opts) =&gt;
+    iconSvg('&lt;path d="M3 12a9 9 0 0 1 15-6.7L21 8"/&gt;&lt;path d="M21 3v5h-5"/&gt;&lt;path d="M21 12a9 9 0 0 1-15 6.7L3 16"/&gt;&lt;path d="M3 21v-5h5"/&gt;', opts),
+&nbsp;
+  lock: (opts) =&gt;
+    iconSvg('&lt;rect width="18" height="11" x="3" y="11" rx="2" ry="2"/&gt;&lt;path d="M7 11V7a5 5 0 0 1 10 0v4"/&gt;', opts),
+&nbsp;
+  externalLink: (opts) =&gt;
+    iconSvg('&lt;path d="M15 3h6v6"/&gt;&lt;path d="M10 14 21 3"/&gt;&lt;path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/&gt;', opts),
+&nbsp;
+  grid: (opts) =&gt;
+    iconSvg('&lt;rect width="7" height="7" x="3" y="3" rx="1"/&gt;&lt;rect width="7" height="7" x="14" y="3" rx="1"/&gt;&lt;rect width="7" height="7" x="14" y="14" rx="1"/&gt;&lt;rect width="7" height="7" x="3" y="14" rx="1"/&gt;', opts),
+&nbsp;
+  star: (opts) =&gt;
+    iconSvg('&lt;polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/&gt;', opts),
+&nbsp;
+  bell: (opts) =&gt;
+    iconSvg('&lt;path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/&gt;&lt;path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/&gt;', opts),
+&nbsp;
+  plus: <span class="fstat-no" title="function not covered" >(o</span>pts) =&gt;
+<span class="cstat-no" title="statement not covered" >    iconSvg('&lt;path d="M5 12h14"/&gt;&lt;path d="M12 5v14"/&gt;', opts),</span>
+&nbsp;
+  cloud: (opts) =&gt;
+    iconSvg('&lt;path d="M17.5 19x-12A5.5 5.5 0 0 1 2 13.5A5.5 5.5 0 0 1 7.1 8.1A7 7 0 0 1 20.7 12A4.5 4.5 0 0 1 17.5 19z"/&gt;', opts),
+&nbsp;
+  fileSpreadsheet: <span class="fstat-no" title="function not covered" >(o</span>pts) =&gt;
+<span class="cstat-no" title="statement not covered" >    iconSvg('&lt;path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/&gt;&lt;path d="M14 2v4a2 2 0 0 0 2 2h4"/&gt;&lt;path d="M8 13h8"/&gt;&lt;path d="M8 17h8"/&gt;&lt;path d="M12 9v8"/&gt;', opts),</span>
+&nbsp;
+  edit: (opts) =&gt;
+    iconSvg('&lt;path d="M12 20h9"/&gt;&lt;path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-3.683.92 1.009-3.568a2 2 0 0 1 .494-.872z"/&gt;', opts),
+&nbsp;
+  sun: (opts) =&gt;
+    iconSvg('&lt;circle cx="12" cy="12" r="4"/&gt;&lt;path d="M12 2v2"/&gt;&lt;path d="M12 20v2"/&gt;&lt;path d="m4.93 4.93 1.41 1.41"/&gt;&lt;path d="m17.66 17.66 1.41 1.41"/&gt;&lt;path d="M2 12h2"/&gt;&lt;path d="M20 12h2"/&gt;&lt;path d="m4.93 19.07 1.41-1.41"/&gt;&lt;path d="m17.66 6.34 1.41-1.41"/&gt;', opts),
+&nbsp;
+  moon: <span class="fstat-no" title="function not covered" >(o</span>pts) =&gt;
+<span class="cstat-no" title="statement not covered" >    iconSvg('&lt;path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/&gt;', opts),</span>
+&nbsp;
+  copy: (opts) =&gt;
+    iconSvg('&lt;rect width="14" height="14" x="8" y="8" rx="2" ry="2"/&gt;&lt;path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/&gt;', opts),
+&nbsp;
+  move: (opts) =&gt;
+    iconSvg('&lt;path d="M5 12h14"/&gt;&lt;path d="m13 18 6-6-6-6"/&gt;&lt;path d="M5 4v16"/&gt;', opts),
+&nbsp;
+  trash: (opts) =&gt;
+    iconSvg('&lt;path d="M3 6h18"/&gt;&lt;path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/&gt;&lt;path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/&gt;&lt;line x1="10" x2="10" y1="11" y2="17"/&gt;&lt;line x1="14" x2="14" y1="11" y2="17"/&gt;', opts),
+};
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-07-25T08:18:07.629Z
+            </div>
+        <script src="../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../sorter.js"></script>
+        <script src="../block-navigation.js"></script>
+    </body>
+</html>
+    

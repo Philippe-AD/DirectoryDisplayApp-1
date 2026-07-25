@@ -93,7 +93,7 @@ function createWindow() {
 
 // IPC Handlers
 ipcMain.handle('app:getVersion', () => {
-  return app.getVersion() || '1.0.0-rc.1';
+  return app.getVersion() || '1.0.0';
 });
 
 ipcMain.handle('app:openExternal', async (_event, filePath) => {

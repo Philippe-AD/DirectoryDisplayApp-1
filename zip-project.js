@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 
 // 0. Lecture de la version du projet dans package.json
 const pkgPath = path.resolve('package.json');
-let version = '1.0.0-rc.1';
+let version = '1.0.0';
 if (fs.existsSync(pkgPath)) {
   try {
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
@@ -30,6 +30,8 @@ const itemsToInclude = [
   'postcss.config.js',
   'eslint.config.js',
   'README.md',
+  'CHANGELOG.md',
+  'docs',
   '.gitignore',
   'zip-project.js'
 ];

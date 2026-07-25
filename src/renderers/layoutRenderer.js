@@ -1515,7 +1515,7 @@ export function renderMainLayout(
           <div class="min-w-0">
             <div class="flex items-center gap-2">
               <h1 class="text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'} truncate tracking-tight">${escapeHtml(displayName)}</h1>
-              <span class="text-[10px] font-mono uppercase ${isLight ? 'bg-purple-100 text-purple-800 border border-purple-300' : 'bg-purple-950/80 text-purple-300 border border-purple-700/60'} px-2 py-0.5 rounded-full">Cloud Dock</span>
+              <span class="text-[10px] font-mono uppercase ${isLight ? 'bg-purple-100 text-purple-800 border border-purple-300' : 'bg-purple-950/80 text-purple-300 border border-purple-700/60'} px-2 py-0.5 rounded-full">DirectoryDisplayApp</span>
             </div>
             <div class="text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'} truncate max-w-lg mt-0.5 flex items-center font-mono">
               ${renderBreadcrumbs(currentPath)}
@@ -1694,7 +1694,7 @@ export function renderMainLayout(
             ${icons.folderOpen({ size: 14 })}
           </div>
           <span class="text-xs font-bold ${isLight ? 'text-slate-900' : 'text-white'} tracking-tight">DirectoryDisplayApp</span>
-          <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">v1.0.0-rc.1</span>
+          <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">v1.0.0</span>
         </div>
 
         <div class="flex items-center gap-2 text-xs font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'} truncate max-w-xs">
